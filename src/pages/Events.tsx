@@ -133,10 +133,16 @@ function PickBookModal({ onClose, onSelect }: { onClose: () => void; onSelect: (
 // ─── Edit/Create event modal ──────────────────────────────────────────────────
 
 function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => void }) {
-  const { addEvent, updateEvent } = useApp();
+  const { addEvent, updateEvent, addBook, books } = useApp();
   const isNew = !event;
 
-  const [title, setTitle]       = useState(event?.title ?? '');
+  // Book search state
+  const existingBook = event?.bookId ? books.find(b => b.id === event.bookId) : undefined;
+  const [selectedBook, setSelectedBook] = useState<Book | null>(existingBook ?? null);
+  const [bookQuery, setBookQuery]       = useState('');
+  const [bookResults, setBookResults]   = useState<Book[]>([]);
+  const [searching, setSearching]       = useState(false);
+
   const [date, setDate]         = useState(event?.date ?? '');
   const [time, setTime]         = useState(event?.time ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
@@ -144,17 +150,40 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
   const [description, setDescription] = useState(event?.description ?? '');
   const [saving, setSaving]     = useState(false);
 
+  const searchBooks = useCallback(async () => {
+    if (!bookQuery.trim()) return;
+    setSearching(true);
+    try {
+      const googleResults = await searchGoogleBooks(bookQuery);
+      const mapped: Book[] = googleResults.map(r => ({
+        id: r.id, title: r.title, author: r.author,
+        coverUrl: r.coverUrl, description: r.description ?? '',
+        publishedYear: r.publishedYear ?? 0, genre: 'Fiction', pageCount: r.pageCount ?? 0,
+      }));
+      const localMatches = books.filter(b =>
+        b.title.toLowerCase().includes(bookQuery.toLowerCase()) ||
+        b.author.toLowerCase().includes(bookQuery.toLowerCase())
+      );
+      const seen = new Set<string>();
+      setBookResults([...localMatches, ...mapped].filter(r => {
+        const key = `${r.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30)}|${r.author.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`;
+        if (seen.has(key)) return false; seen.add(key); return true;
+      }));
+    } finally { setSearching(false); }
+  }, [bookQuery, books]);
+
   const handleSave = async () => {
-    if (!title.trim() || !date) return;
+    if (!selectedBook || !date) return;
     setSaving(true);
     if (isNew) {
-      await addEvent(title.trim(), date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined);
+      await addEvent(selectedBook.title, date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined, selectedBook.id);
     } else {
       updateEvent(event!.id, {
-        title: title.trim(), date, time: time.trim(),
+        title: selectedBook.title, date, time: time.trim(),
         location: location.trim() || undefined,
         description: description.trim() || undefined,
         host: host.trim() || undefined,
+        bookId: selectedBook.id,
       });
     }
     setSaving(false);
@@ -169,11 +198,58 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-earth-100 text-earth-400 text-lg">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+          {/* ── Book picker ── */}
           <div>
-            <label className="block text-sm font-semibold text-earth-700 mb-1.5">Meeting title *</label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. June Book Club"
-              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" autoFocus />
+            <label className="block text-sm font-semibold text-earth-700 mb-2">📖 What are you reading? *</label>
+            {selectedBook ? (
+              <div className="flex gap-3 items-center bg-earth-50 rounded-xl p-3 border border-earth-200">
+                <BookCover src={selectedBook.coverUrl} title={selectedBook.title} author={selectedBook.author} className="w-14 shrink-0 shadow-sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-serif font-bold text-earth-800 text-sm leading-tight">{selectedBook.title}</p>
+                  <p className="text-xs text-earth-500 mt-0.5">{selectedBook.author}</p>
+                </div>
+                <button onClick={() => { setSelectedBook(null); setBookResults([]); setBookQuery(''); }}
+                  className="text-xs text-terracotta-600 font-medium hover:text-terracotta-700 shrink-0">
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    type="text" value={bookQuery} onChange={e => setBookQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && searchBooks()}
+                    placeholder="Search by title or author…"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50"
+                    autoFocus
+                  />
+                  <button onClick={searchBooks} disabled={searching || !bookQuery.trim()}
+                    className="px-4 py-2.5 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
+                    {searching ? '…' : 'Search'}
+                  </button>
+                </div>
+                {bookResults.length > 0 && (
+                  <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    {bookResults.map(book => (
+                      <button key={book.id}
+                        onClick={() => { addBook(book); setSelectedBook(book); setBookResults([]); setBookQuery(''); }}
+                        className="w-full flex gap-3 items-center p-2.5 rounded-xl hover:bg-earth-50 transition-colors text-left">
+                        <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-10 shrink-0 shadow-sm" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-earth-800 text-sm leading-tight truncate">{book.title}</p>
+                          <p className="text-xs text-earth-400">{book.author}</p>
+                        </div>
+                        <span className="text-terracotta-500 text-sm shrink-0">Select →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* ── Date & Time ── */}
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="block text-sm font-semibold text-earth-700 mb-1.5">📅 Date *</label>
@@ -186,6 +262,7 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
                 className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
             </div>
           </div>
+
           <div>
             <label className="block text-sm font-semibold text-earth-700 mb-1.5">🏠 Who's hosting?</label>
             <input value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. Sarah's place"
@@ -204,7 +281,7 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
           </div>
         </div>
         <div className="px-5 py-4 border-t border-earth-100 shrink-0">
-          <button onClick={handleSave} disabled={!title.trim() || !date || saving}
+          <button onClick={handleSave} disabled={!selectedBook || !date || saving}
             className="w-full py-3 bg-terracotta-500 text-white rounded-xl font-semibold text-sm hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
             {saving ? 'Saving…' : isNew ? 'Create meeting' : 'Save changes'}
           </button>

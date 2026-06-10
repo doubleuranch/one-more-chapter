@@ -50,7 +50,7 @@ interface AppContextValue extends AppState {
   // Events
   rsvpEvent: (eventId: string, status: 'yes' | 'maybe' | 'no') => void;
   setEventBook: (eventId: string, bookId: string) => void;
-  addEvent: (title: string, date: string, time?: string, location?: string, description?: string, host?: string) => Promise<void>;
+  addEvent: (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string) => Promise<void>;
   updateEvent: (eventId: string, updates: Partial<Pick<ClubEvent, 'title' | 'date' | 'time' | 'location' | 'description' | 'host' | 'bookId'>>) => void;
   deleteEvent: (eventId: string) => void;
   // Notifications
@@ -521,8 +521,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!error && data) {
           setState(s => ({ ...s, clubBooks: s.clubBooks.map(cb => cb.id === tempId ? { ...cb, id: data.id } : cb) }));
         } else {
-          console.error('OMC nominateBook error:', JSON.stringify(error));
-          alert('Nominate failed: ' + (error?.message ?? 'unknown error') + ' | code: ' + (error?.code ?? ''));
+          console.error('nominateBook error:', error);
           setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
         }
       });
@@ -809,7 +808,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     bg(supabase.from('events').update(dbUp).eq('id', eventId));
   };
 
-  const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string) => {
+  const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string) => {
     if (!state.currentUser) return;
     const { data, error } = await supabase.from('events').insert({
       title, date,
@@ -817,6 +816,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       location: location ?? null,
       description: description ?? null,
       host: host ?? null,
+      book_id: bookId ?? null,
       created_by: state.currentUser.id,
     }).select().single();
     if (!error && data) {
@@ -824,7 +824,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: data.id, title: data.title, date: data.date,
         time: data.time ?? '', location: data.location ?? undefined,
         description: data.description ?? undefined, host: data.host ?? undefined,
-        bookId: undefined, rsvps: [], createdBy: data.created_by ?? '',
+        bookId: data.book_id ?? undefined, rsvps: [], createdBy: data.created_by ?? '',
       };
       setState(s => ({ ...s, events: [...s.events, newEvent].sort((a, b) => a.date.localeCompare(b.date)) }));
     }
