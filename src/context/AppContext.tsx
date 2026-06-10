@@ -125,7 +125,7 @@ async function loadAllData(
       supabase.from('follows').select('*'),
       supabase.from('swap_books').select('*'),
       supabase.from('swap_requests').select('*'),
-      supabase.from('club_events').select('*').order('date', { ascending: true }),
+      supabase.from('events').select('*').order('date', { ascending: true }),
       supabase.from('event_rsvps').select('*'),
     ]);
 
@@ -789,7 +789,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...s,
       events: s.events.map(ev => ev.id === eventId ? { ...ev, bookId } : ev),
     }));
-    bg(supabase.from('club_events').update({ book_id: bookId }).eq('id', eventId));
+    bg(supabase.from('events').update({ book_id: bookId }).eq('id', eventId));
   };
 
   const updateEvent = (eventId: string, updates: Partial<Pick<ClubEvent, 'title' | 'date' | 'time' | 'location' | 'description' | 'host' | 'bookId'>>) => {
@@ -805,12 +805,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (updates.description !== undefined) dbUp.description = updates.description ?? null;
     if (updates.host        !== undefined) dbUp.host        = updates.host ?? null;
     if (updates.bookId      !== undefined) dbUp.book_id     = updates.bookId ?? null;
-    bg(supabase.from('club_events').update(dbUp).eq('id', eventId));
+    bg(supabase.from('events').update(dbUp).eq('id', eventId));
   };
 
   const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string) => {
     if (!state.currentUser) return;
-    const { data, error } = await supabase.from('club_events').insert({
+    const { data, error } = await supabase.from('events').insert({
       title, date,
       time: time ?? '',
       location: location ?? null,
@@ -831,7 +831,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteEvent = (eventId: string) => {
     setState(s => ({ ...s, events: s.events.filter(ev => ev.id !== eventId) }));
-    bg(supabase.from('club_events').delete().eq('id', eventId));
+    bg(supabase.from('events').delete().eq('id', eventId));
   };
 
   // ── Notifications ─────────────────────────────────────────────────────────────
