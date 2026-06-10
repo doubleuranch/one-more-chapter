@@ -19,6 +19,7 @@ interface AppState {
   notifications: Notification[];
   loading: boolean;
   initialized: boolean;
+  needsProfileSetup: boolean;
 }
 
 interface AppContextValue extends AppState {
@@ -64,6 +65,9 @@ interface AppContextValue extends AppState {
   setClubBookStatus: (clubBookId: string, status: ClubBookStatus) => void;
   addPastClubBook: (bookId: string, startDate: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => void;
   updateClubBookMeta: (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => void;
+  // Profile setup (for new invited users)
+  needsProfileSetup: boolean;
+  completeProfileSetup: (displayName: string, username: string, avatarColor: string) => Promise<void>;
 }
 
 // ─── Initial / reset state ─────────────────────────────────────────────────────
@@ -81,6 +85,7 @@ const LOGGED_OUT_STATE: AppState = {
   notifications: MOCK_NOTIFICATIONS, // keep until Notifications table is wired up
   loading: false,
   initialized: true,
+  needsProfileSetup: false,
 };
 
 // Fire-and-forget helper: converts any PromiseLike (Supabase query builder) to a real Promise
@@ -226,6 +231,9 @@ async function loadAllData(
     }));
 
     const currentUser = users.find(u => u.id === authUserId) ?? null;
+    // Detect newly invited users who haven't completed their profile yet
+    const currentUserProfile = profiles.find((p: any) => p.id === authUserId);
+    const needsProfileSetup = currentUserProfile ? !(currentUserProfile.profile_complete ?? false) : false;
 
     setState(s => ({
       ...s,
@@ -237,6 +245,7 @@ async function loadAllData(
       swapBooks,
       swapRequests,
       currentUser,
+      needsProfileSetup,
       loading: false,
       initialized: true,
     }));
@@ -264,6 +273,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     notifications: MOCK_NOTIFICATIONS,
     loading: true,
     initialized: false,
+    needsProfileSetup: false,
   });
 
   // ── Auth listener ─────────────────────────────────────────────────────────────
@@ -839,6 +849,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({ ...s, notifications: [notif, ...s.notifications] }));
   };
 
+  // ── Profile setup (for newly invited users) ───────────────────────────────────
+  const completeProfileSetup = async (displayName: string, username: string, avatarColor: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const initials = displayName.trim().split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    await supabase.from('profiles').update({
+      display_name: displayName.trim(),
+      username: username.trim().toLowerCase(),
+      avatar_color: avatarColor,
+      avatar_initials: initials,
+      profile_complete: true,
+    }).eq('id', session.user.id);
+    await loadAllData(session.user.id, setState);
+  };
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
@@ -880,6 +905,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setClubBookStatus,
       addPastClubBook,
       updateClubBookMeta,
+      completeProfileSetup,
     }}>
       {children}
     </AppContext.Provider>

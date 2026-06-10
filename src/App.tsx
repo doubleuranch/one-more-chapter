@@ -11,6 +11,7 @@ import Wrapped from './pages/Wrapped';
 import Swap from './pages/Swap';
 import Events from './pages/Events';
 import MyShelf from './pages/MyShelf';
+import Welcome from './pages/Welcome';
 
 // While Supabase checks the session, show nothing (avoids flash to /login)
 function LoadingScreen() {
@@ -23,8 +24,9 @@ function LoadingScreen() {
 }
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { currentUser, initialized } = useApp();
+  const { currentUser, initialized, needsProfileSetup } = useApp();
   if (!initialized) return <LoadingScreen />;
+  if (needsProfileSetup) return <Navigate to="/welcome" replace />;
   return currentUser ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
@@ -37,6 +39,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login"    element={currentUser ? <Navigate to="/feed" replace /> : <Login />} />
+      <Route path="/welcome"  element={<Welcome />} />
       <Route path="/register/:inviteCode" element={<Register />} />
       <Route path="/feed"          element={<PrivateRoute><Feed /></PrivateRoute>} />
       <Route path="/search"        element={<PrivateRoute><Search /></PrivateRoute>} />
