@@ -8,7 +8,7 @@ import RatingModal from '../components/RatingModal';
 import { ratingEmoji, ratingBg, ratingLabel } from '../lib/utils';
 import { searchGoogleBooks } from '../lib/googleBooks';
 import { supabase } from '../lib/supabase';
-import type { ClubEvent, Book, UserBook } from '../types';
+import type { ClubEvent, ClubBook, Book } from '../types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -22,18 +22,22 @@ const RSVP_OPTIONS = [
   { status: 'no' as const, label: "Can't", emoji: '✕' },
 ];
 
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - i);
+
 // ─── Club rating bar ──────────────────────────────────────────────────────────
 
-function ClubRatingBar({ ratings }: { ratings: UserBook[] }) {
+function ClubRatingBar({ ratings }: { ratings: { rating?: string }[] }) {
   const rated = ratings.filter(r => r.rating);
   if (rated.length === 0) return null;
   const loved = rated.filter(r => r.rating === 'thumbs_up').length;
   const soso  = rated.filter(r => r.rating === 'so_so').length;
-  const nope  = rated.filter(r => r.rating === 'thumbs_down').length;
   const total = rated.length;
   const lovedPct = Math.round((loved / total) * 100);
   const sosoPct  = Math.round((soso  / total) * 100);
   const nopePct  = 100 - lovedPct - sosoPct;
+  const nope = total - loved - soso;
   let verdict = '';
   if (lovedPct >= 75) verdict = 'The club loved this one';
   else if (lovedPct >= 50) verdict = 'Mostly a hit';
@@ -59,17 +63,12 @@ function ClubRatingBar({ ratings }: { ratings: UserBook[] }) {
   );
 }
 
-// ─── Pick a book modal (for upcoming meetings) ────────────────────────────────
+// ─── Pick a book modal ────────────────────────────────────────────────────────
 
-interface PickBookModalProps {
-  onClose: () => void;
-  onSelect: (book: Book) => void;
-}
-
-function PickBookModal({ onClose, onSelect }: PickBookModalProps) {
+function PickBookModal({ onClose, onSelect }: { onClose: () => void; onSelect: (book: Book) => void }) {
   const { books, addBook } = useApp();
-  const [query, setQuery]       = useState('');
-  const [results, setResults]   = useState<Book[]>([]);
+  const [query, setQuery]     = useState('');
+  const [results, setResults] = useState<Book[]>([]);
   const [searching, setSearching] = useState(false);
 
   const search = useCallback(async () => {
@@ -80,63 +79,42 @@ function PickBookModal({ onClose, onSelect }: PickBookModalProps) {
       const mapped: Book[] = googleResults.map(r => ({
         id: r.id, title: r.title, author: r.author,
         coverUrl: r.coverUrl, description: r.description ?? '',
-        publishedYear: r.publishedYear ?? 0, genre: 'Fiction',
-        pageCount: r.pageCount ?? 0,
+        publishedYear: r.publishedYear ?? 0, genre: 'Fiction', pageCount: r.pageCount ?? 0,
       }));
       const localMatches = books.filter(b =>
         b.title.toLowerCase().includes(query.toLowerCase()) ||
         b.author.toLowerCase().includes(query.toLowerCase())
       );
-      const combined = [...localMatches, ...mapped];
       const seen = new Set<string>();
-      setResults(combined.filter(r => {
+      setResults([...localMatches, ...mapped].filter(r => {
         const key = `${r.title.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,30)}|${r.author.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,20)}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
+        if (seen.has(key)) return false; seen.add(key); return true;
       }));
-    } finally {
-      setSearching(false);
-    }
+    } finally { setSearching(false); }
   }, [query, books]);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-earth-100 shrink-0">
-          <div>
-            <h2 className="font-serif font-bold text-earth-800 text-lg">Add a book to this meeting</h2>
-            <p className="text-xs text-earth-400 mt-0.5">Search and select the book the club will discuss</p>
-          </div>
+          <h2 className="font-serif font-bold text-earth-800 text-lg">Add a book to this meeting</h2>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-earth-100 text-earth-400 text-lg">✕</button>
         </div>
-
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex gap-2 mb-4">
-            <input
-              type="text" value={query} onChange={e => setQuery(e.target.value)}
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && search()}
               placeholder="Search by title or author…"
-              className="flex-1 px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50"
-              autoFocus
-            />
+              className="flex-1 px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" autoFocus />
             <button onClick={search} disabled={searching || !query.trim()}
               className="px-4 py-2.5 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
               {searching ? '…' : 'Search'}
             </button>
           </div>
-
-          {results.length === 0 && !searching && query && (
-            <p className="text-sm text-earth-400 text-center py-6">No results — try a different title or author</p>
-          )}
-
           <div className="space-y-2">
             {results.map(book => (
-              <button
-                key={book.id}
-                onClick={() => { addBook(book); onSelect(book); onClose(); }}
-                className="w-full flex gap-3 items-center p-3 rounded-xl hover:bg-earth-50 transition-colors text-left"
-              >
+              <button key={book.id} onClick={() => { addBook(book); onSelect(book); onClose(); }}
+                className="w-full flex gap-3 items-center p-3 rounded-xl hover:bg-earth-50 transition-colors text-left">
                 <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-12 shrink-0 shadow-sm" />
                 <div className="flex-1 min-w-0">
                   <p className="font-serif font-bold text-earth-800 text-sm leading-tight">{book.title}</p>
@@ -152,16 +130,101 @@ function PickBookModal({ onClose, onSelect }: PickBookModalProps) {
   );
 }
 
+// ─── Edit/Create event modal ──────────────────────────────────────────────────
+
+function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => void }) {
+  const { addEvent, updateEvent } = useApp();
+  const isNew = !event;
+
+  const [title, setTitle]       = useState(event?.title ?? '');
+  const [date, setDate]         = useState(event?.date ?? '');
+  const [time, setTime]         = useState(event?.time ?? '');
+  const [location, setLocation] = useState(event?.location ?? '');
+  const [host, setHost]         = useState(event?.host ?? '');
+  const [description, setDescription] = useState(event?.description ?? '');
+  const [saving, setSaving]     = useState(false);
+
+  const handleSave = async () => {
+    if (!title.trim() || !date) return;
+    setSaving(true);
+    if (isNew) {
+      await addEvent(title.trim(), date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined);
+    } else {
+      updateEvent(event!.id, {
+        title: title.trim(), date, time: time.trim(),
+        location: location.trim() || undefined,
+        description: description.trim() || undefined,
+        host: host.trim() || undefined,
+      });
+    }
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-earth-100 shrink-0">
+          <h2 className="font-serif font-bold text-earth-800 text-lg">{isNew ? 'New meeting' : 'Edit meeting'}</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-earth-100 text-earth-400 text-lg">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-1.5">Meeting title *</label>
+            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. June Book Club"
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" autoFocus />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-earth-700 mb-1.5">📅 Date *</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-semibold text-earth-700 mb-1.5">🕐 Time</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-1.5">🏠 Who's hosting?</label>
+            <input value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. Sarah's place"
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-1.5">📍 Location</label>
+            <input value={location} onChange={e => setLocation(e.target.value)} placeholder="Address or 'Zoom'"
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-1.5">📝 Notes</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)}
+              placeholder="Anything the group should know…" rows={3}
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50 resize-none" />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-earth-100 shrink-0">
+          <button onClick={handleSave} disabled={!title.trim() || !date || saving}
+            className="w-full py-3 bg-terracotta-500 text-white rounded-xl font-semibold text-sm hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
+            {saving ? 'Saving…' : isNew ? 'Create meeting' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Upcoming event card ──────────────────────────────────────────────────────
 
 function UpcomingEventCard({ event }: { event: ClubEvent }) {
   const navigate = useNavigate();
   const { currentUser, getBook, getUser, rsvpEvent, setEventBook } = useApp();
-  const book   = event.bookId ? getBook(event.bookId) : undefined;
-  const myRsvp = currentUser ? event.rsvps.find(r => r.userId === currentUser.id)?.status : undefined;
+  const book     = event.bookId ? getBook(event.bookId) : undefined;
+  const myRsvp   = currentUser ? event.rsvps.find(r => r.userId === currentUser.id)?.status : undefined;
   const yesCount   = event.rsvps.filter(r => r.status === 'yes').length;
   const maybeCount = event.rsvps.filter(r => r.status === 'maybe').length;
   const [showPickBook, setShowPickBook] = useState(false);
+  const [showEdit, setShowEdit]         = useState(false);
 
   return (
     <div className="bg-white rounded-2xl border-2 border-terracotta-200 p-4">
@@ -176,19 +239,29 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif font-bold text-earth-800 leading-tight">{event.title}</h3>
-          <p className="text-earth-400 text-xs mt-0.5">{event.time}{event.location ? ` · ${event.location}` : ''}</p>
-
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-serif font-bold text-earth-800 leading-tight">{event.title}</h3>
+            {currentUser?.isAdmin && (
+              <button onClick={() => setShowEdit(true)}
+                className="shrink-0 text-xs text-earth-400 hover:text-terracotta-600 font-medium transition-colors">
+                Edit
+              </button>
+            )}
+          </div>
+          <p className="text-earth-400 text-xs mt-0.5">
+            {event.time && `${event.time}`}{event.location ? (event.time ? ` · ${event.location}` : event.location) : ''}
+          </p>
+          {event.host && (
+            <p className="text-xs text-earth-500 mt-1">🏠 Hosted by {event.host}</p>
+          )}
           {event.description && (
             <p className="text-earth-500 text-sm mt-2 leading-snug">{event.description}</p>
           )}
 
           {book ? (
             <div className="mt-3">
-              <button
-                onClick={() => navigate(`/book/${book.id}`)}
-                className="flex gap-3 items-center w-full text-left p-3 bg-earth-50 rounded-xl hover:bg-earth-100 transition-colors"
-              >
+              <button onClick={() => navigate(`/book/${book.id}`)}
+                className="flex gap-3 items-center w-full text-left p-3 bg-earth-50 rounded-xl hover:bg-earth-100 transition-colors">
                 <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-14 shrink-0 shadow-sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-earth-400 uppercase tracking-wide mb-1">We're reading</p>
@@ -196,18 +269,16 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
                   <p className="text-sm text-earth-500 mt-0.5">{book.author}</p>
                 </div>
               </button>
-              <button
-                onClick={() => setShowPickBook(true)}
-                className="mt-1.5 text-xs text-earth-400 hover:text-terracotta-600 font-medium transition-colors"
-              >
-                Change book
-              </button>
+              {currentUser?.isAdmin && (
+                <button onClick={() => setShowPickBook(true)}
+                  className="mt-1.5 text-xs text-earth-400 hover:text-terracotta-600 font-medium transition-colors">
+                  Change book
+                </button>
+              )}
             </div>
           ) : (
-            <button
-              onClick={() => setShowPickBook(true)}
-              className="mt-3 w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-earth-300 rounded-xl text-sm font-medium text-earth-400 hover:border-terracotta-300 hover:text-terracotta-600 hover:bg-terracotta-50 transition-colors"
-            >
+            <button onClick={() => setShowPickBook(true)}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-earth-300 rounded-xl text-sm font-medium text-earth-400 hover:border-terracotta-300 hover:text-terracotta-600 hover:bg-terracotta-50 transition-colors">
               📖 Add the book for this meeting
             </button>
           )}
@@ -229,17 +300,14 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
           {currentUser && (
             <div className="flex gap-2 mt-3">
               {RSVP_OPTIONS.map(opt => (
-                <button
-                  key={opt.status}
-                  onClick={() => rsvpEvent(event.id, opt.status)}
+                <button key={opt.status} onClick={() => rsvpEvent(event.id, opt.status)}
                   className={`flex-1 py-1.5 rounded-xl text-xs font-medium transition-colors ${
                     myRsvp === opt.status
                       ? opt.status === 'yes'   ? 'bg-forest-500 text-white'
                       : opt.status === 'maybe' ? 'bg-earth-400 text-white'
                       :                          'bg-earth-200 text-earth-600'
                       : 'bg-earth-50 text-earth-500 hover:bg-earth-100'
-                  }`}
-                >
+                  }`}>
                   {opt.label}
                 </button>
               ))}
@@ -249,11 +317,131 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
       </div>
 
       {showPickBook && (
-        <PickBookModal
-          onClose={() => setShowPickBook(false)}
-          onSelect={book => setEventBook(event.id, book.id)}
-        />
+        <PickBookModal onClose={() => setShowPickBook(false)} onSelect={book => setEventBook(event.id, book.id)} />
       )}
+      {showEdit && <EditEventModal event={event} onClose={() => setShowEdit(false)} />}
+    </div>
+  );
+}
+
+// ─── Edit past meeting modal ──────────────────────────────────────────────────
+
+function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => void }) {
+  const { updateClubBookMeta } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const initialDate = cb.startDate ? new Date(cb.startDate + 'T12:00:00') : new Date();
+  const [month, setMonth]         = useState(String(initialDate.getMonth() + 1).padStart(2, '0'));
+  const [year, setYear]           = useState(String(initialDate.getFullYear()));
+  const [host, setHost]           = useState(cb.host ?? '');
+  const [cakeNote, setCakeNote]   = useState(cb.cakeNote ?? '');
+  const [editorNote, setEditorNote] = useState(cb.editorNote ?? '');
+  const [cakeImagePreview, setCakeImagePreview] = useState<string | null>(cb.cakeImageUrl ?? null);
+  const [cakeImageUrl, setCakeImageUrl]         = useState<string | null>(cb.cakeImageUrl ?? null);
+  const [uploadingImage, setUploadingImage]     = useState(false);
+  const [uploadError, setUploadError]           = useState<string | null>(null);
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCakeImagePreview(URL.createObjectURL(file));
+    setCakeImageUrl(null);
+    setUploadError(null);
+    setUploadingImage(true);
+    try {
+      const ext  = file.name.split('.').pop() ?? 'jpg';
+      const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, file, { upsert: false, contentType: file.type });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('club-photos').getPublicUrl(path);
+      setCakeImageUrl(publicUrl);
+    } catch {
+      setUploadError('Upload failed — image preview is local only.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSave = () => {
+    updateClubBookMeta(
+      cb.id,
+      host.trim() || undefined,
+      cakeNote.trim() || undefined,
+      editorNote.trim() || undefined,
+      cakeImageUrl ?? undefined,
+      `${year}-${month}-01`,
+    );
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-earth-100 shrink-0">
+          <h2 className="font-serif font-bold text-earth-800 text-lg">Edit past meeting</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-earth-100 text-earth-400 text-lg">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-2">📅 When did you meet?</label>
+            <div className="flex gap-2">
+              <select value={month} onChange={e => setMonth(e.target.value)}
+                className="flex-1 px-3 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50">
+                {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+              </select>
+              <select value={year} onChange={e => setYear(e.target.value)}
+                className="w-28 px-3 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50">
+                {YEARS.map(y => <option key={y} value={String(y)}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-2">🏠 Who hosted?</label>
+            <input type="text" value={host} onChange={e => setHost(e.target.value)}
+              placeholder="e.g. Sarah's place"
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-2">🎂 Cake photo & note</label>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+            {cakeImagePreview ? (
+              <div className="relative mb-3 rounded-xl overflow-hidden border border-earth-200">
+                <img src={cakeImagePreview} alt="Cake" className="w-full h-40 object-cover" />
+                {uploadingImage && (
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <span className="bg-white rounded-full px-3 py-1.5 text-sm font-medium text-earth-700">⏳ Uploading…</span>
+                  </div>
+                )}
+                <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                  className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => fileInputRef.current?.click()}
+                className="w-full h-20 mb-3 border-2 border-dashed border-earth-300 rounded-xl flex items-center justify-center gap-2 hover:border-terracotta-300 hover:bg-terracotta-50 transition-colors group">
+                <span className="text-xl">📸</span>
+                <span className="text-sm font-medium text-earth-500 group-hover:text-terracotta-600">Upload cake photo</span>
+              </button>
+            )}
+            {uploadError && <p className="text-xs text-amber-600 mb-2">{uploadError}</p>}
+            <textarea value={cakeNote} onChange={e => setCakeNote(e.target.value)}
+              placeholder="e.g. Lemon drizzle with lavender frosting" rows={2}
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50 resize-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-earth-700 mb-2">✍️ What made this night special?</label>
+            <textarea value={editorNote} onChange={e => setEditorNote(e.target.value)}
+              placeholder="A few lines about the conversation…" rows={4} maxLength={400}
+              className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50 resize-none" />
+            <p className="text-xs text-earth-400 text-right mt-1">{editorNote.length}/400</p>
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-earth-100 shrink-0">
+          <button onClick={handleSave}
+            className="w-full py-3 bg-terracotta-500 text-white rounded-xl font-semibold text-sm hover:bg-terracotta-600 transition-colors">
+            Save changes
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -263,11 +451,11 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
 function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
   const navigate = useNavigate();
   const { clubBooks, getBook, userBooks, users, currentUser, rateBook, getUserBook } = useApp();
-
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [showEditModal, setShowEditModal]     = useState(false);
 
-  const cb       = clubBooks.find(c => c.id === clubBookId);
-  const book     = cb ? getBook(cb.bookId) : undefined;
+  const cb   = clubBooks.find(c => c.id === clubBookId);
+  const book = cb ? getBook(cb.bookId) : undefined;
   if (!cb || !book) return null;
 
   const allRatings = userBooks.filter(ub => ub.bookId === book.id && ub.rating);
@@ -280,15 +468,24 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
 
   return (
     <div className="bg-white rounded-2xl border border-earth-200 overflow-hidden">
-      {/* Book header — clickable */}
-      <div
-        className="flex gap-4 p-4 cursor-pointer hover:bg-earth-50 transition-colors"
-        onClick={() => navigate(`/book/${book.id}`)}
-      >
-        <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-20 shrink-0 shadow-md" />
+      {/* Book header */}
+      <div className="flex gap-4 p-4">
+        <button onClick={() => navigate(`/book/${book.id}`)} className="shrink-0">
+          <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-20 shadow-md" />
+        </button>
         <div className="flex-1 min-w-0">
-          <h3 className="font-serif font-bold text-earth-800 text-lg leading-tight">{book.title}</h3>
-          <p className="text-earth-500 text-sm mt-0.5">{book.author}</p>
+          <div className="flex items-start justify-between gap-2">
+            <button onClick={() => navigate(`/book/${book.id}`)} className="text-left">
+              <h3 className="font-serif font-bold text-earth-800 text-lg leading-tight hover:text-terracotta-600 transition-colors">{book.title}</h3>
+              <p className="text-earth-500 text-sm mt-0.5">{book.author}</p>
+            </button>
+            {currentUser?.isAdmin && (
+              <button onClick={() => setShowEditModal(true)}
+                className="shrink-0 text-xs text-earth-400 hover:text-terracotta-600 font-medium transition-colors">
+                Edit
+              </button>
+            )}
+          </div>
           {monthYear && <p className="text-sm font-semibold text-terracotta-600 mt-1.5">{monthYear}</p>}
           {cb.host && (
             <div className="mt-2">
@@ -301,9 +498,7 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
       {/* Cake */}
       {(cb.cakeImageUrl || cb.cakeNote) && (
         <div className="mx-4 mb-4 rounded-xl overflow-hidden border border-amber-200 bg-amber-50">
-          {cb.cakeImageUrl && (
-            <img src={cb.cakeImageUrl} alt="The cake" className="w-full h-48 object-cover" />
-          )}
+          {cb.cakeImageUrl && <img src={cb.cakeImageUrl} alt="The cake" className="w-full h-48 object-cover" />}
           {cb.cakeNote && (
             <div className="px-3 py-2.5 flex items-start gap-2">
               <span className="text-base shrink-0">🎂</span>
@@ -345,7 +540,7 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
                     <button onClick={() => navigate(`/profile/${u.username}`)} className="font-semibold text-earth-700 hover:text-terracotta-600">
                       {u.displayName.split(' ')[0]}
                     </button>
-                    {r.rating && <span className="ml-1.5">{ratingEmoji(r.rating)}</span>}
+                    {r.rating && <span className="ml-1.5">{ratingEmoji(r.rating as any)}</span>}
                   </p>
                   <p className="text-sm text-earth-600 italic leading-snug">"{r.hotTake}"</p>
                 </div>
@@ -366,18 +561,11 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
                 </span>
                 <span className="text-xs text-earth-400">Your rating</span>
               </div>
-              <button
-                onClick={() => setShowRatingModal(true)}
-                className="text-xs text-terracotta-600 font-medium hover:text-terracotta-700"
-              >
-                Edit
-              </button>
+              <button onClick={() => setShowRatingModal(true)} className="text-xs text-terracotta-600 font-medium hover:text-terracotta-700">Edit</button>
             </div>
           ) : (
-            <button
-              onClick={() => setShowRatingModal(true)}
-              className="w-full py-2.5 rounded-xl border border-earth-200 text-sm font-medium text-earth-600 hover:bg-earth-50 transition-colors"
-            >
+            <button onClick={() => setShowRatingModal(true)}
+              className="w-full py-2.5 rounded-xl border border-earth-200 text-sm font-medium text-earth-600 hover:bg-earth-50 transition-colors">
               Rate this book
             </button>
           )}
@@ -385,47 +573,34 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
       )}
 
       {showRatingModal && currentUser && (
-        <RatingModal
-          book={book}
-          existingRating={myEntry?.rating}
-          existingHotTake={myEntry?.hotTake}
-          existingVibeTags={myEntry?.vibeTags}
-          existingFormat={myEntry?.format}
-          onSave={(rating, hotTake, vibeTags, format) => {
-            rateBook(book.id, rating, hotTake, vibeTags, format);
-            setShowRatingModal(false);
-          }}
-          onClose={() => setShowRatingModal(false)}
-        />
+        <RatingModal book={book} existingRating={myEntry?.rating} existingHotTake={myEntry?.hotTake}
+          existingVibeTags={myEntry?.vibeTags} existingFormat={myEntry?.format}
+          onSave={(rating, hotTake, vibeTags, format) => { rateBook(book.id, rating, hotTake, vibeTags, format); setShowRatingModal(false); }}
+          onClose={() => setShowRatingModal(false)} />
       )}
+      {showEditModal && <EditPastMeetingModal cb={cb} onClose={() => setShowEditModal(false)} />}
     </div>
   );
 }
 
 // ─── Add Past Meeting Modal ───────────────────────────────────────────────────
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - i);
-
-interface AddPastMeetingModalProps {
+function AddPastMeetingModal({ onClose, onSave, addBook }: {
   onClose: () => void;
   onSave: (bookId: string, startDate: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => void;
   addBook: (book: Book) => void;
-}
-
-function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalProps) {
+}) {
   const { books } = useApp();
   const [step, setStep] = useState<'search' | 'details'>('search');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Book[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [month, setMonth]             = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
-  const [year, setYear]               = useState(String(currentYear - 1));
-  const [host, setHost]               = useState('');
-  const [cakeNote, setCakeNote]       = useState('');
-  const [editorNote, setEditorNote]   = useState('');
+  const [month, setMonth]       = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [year, setYear]         = useState(String(currentYear - 1));
+  const [host, setHost]         = useState('');
+  const [cakeNote, setCakeNote] = useState('');
+  const [editorNote, setEditorNote] = useState('');
   const [cakeImagePreview, setCakeImagePreview] = useState<string | null>(null);
   const [cakeImageUrl, setCakeImageUrl]         = useState<string | null>(null);
   const [uploadingImage, setUploadingImage]     = useState(false);
@@ -440,58 +615,40 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
       const mapped: Book[] = googleResults.map(r => ({
         id: r.id, title: r.title, author: r.author,
         coverUrl: r.coverUrl, description: r.description ?? '',
-        publishedYear: r.publishedYear ?? 0, genre: 'Fiction',
-        pageCount: r.pageCount ?? 0,
+        publishedYear: r.publishedYear ?? 0, genre: 'Fiction', pageCount: r.pageCount ?? 0,
       }));
       const localMatches = books.filter(b =>
         b.title.toLowerCase().includes(query.toLowerCase()) ||
         b.author.toLowerCase().includes(query.toLowerCase())
       );
-      const combined = [...localMatches, ...mapped];
       const seen = new Set<string>();
-      setResults(combined.filter(r => {
+      setResults([...localMatches, ...mapped].filter(r => {
         const key = `${r.title.toLowerCase().replace(/[^a-z0-9]/g, '')}|${r.author.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
+        if (seen.has(key)) return false; seen.add(key); return true;
       }));
-    } finally {
-      setSearching(false);
-    }
+    } finally { setSearching(false); }
   }, [query, books]);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setCakeImagePreview(URL.createObjectURL(file));
-    setCakeImageUrl(null);
-    setUploadError(null);
-    setUploadingImage(true);
+    setCakeImageUrl(null); setUploadError(null); setUploadingImage(true);
     try {
       const ext  = file.name.split('.').pop() ?? 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('club-photos').upload(path, file, { upsert: false, contentType: file.type });
+      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, file, { upsert: false, contentType: file.type });
       if (uploadErr) throw uploadErr;
       const { data: { publicUrl } } = supabase.storage.from('club-photos').getPublicUrl(path);
       setCakeImageUrl(publicUrl);
     } catch {
       setUploadError('Upload failed — image preview is local only.');
-    } finally {
-      setUploadingImage(false);
-    }
+    } finally { setUploadingImage(false); }
   };
 
   const handleSave = () => {
     if (!selectedBook) return;
-    onSave(
-      selectedBook.id,
-      `${year}-${month}-01`,
-      host.trim() || undefined,
-      cakeNote.trim() || undefined,
-      editorNote.trim() || undefined,
-      cakeImageUrl ?? undefined,
-    );
+    onSave(selectedBook.id, `${year}-${month}-01`, host.trim() || undefined, cakeNote.trim() || undefined, editorNote.trim() || undefined, cakeImageUrl ?? undefined);
     onClose();
   };
 
@@ -507,18 +664,13 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
           </div>
           <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-earth-100 text-earth-400 text-lg">✕</button>
         </div>
-
         <div className="flex-1 overflow-y-auto">
           {step === 'search' ? (
             <div className="p-5">
               <div className="flex gap-2 mb-4">
-                <input
-                  type="text" value={query} onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && search()}
-                  placeholder="Search by title or author…"
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50"
-                  autoFocus
-                />
+                <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && search()} placeholder="Search by title or author…"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" autoFocus />
                 <button onClick={search} disabled={searching || !query.trim()}
                   className="px-4 py-2.5 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
                   {searching ? '…' : 'Search'}
@@ -550,15 +702,12 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
                   <button onClick={() => setStep('search')} className="text-xs text-terracotta-600 font-medium">Change</button>
                 </div>
               )}
-
               <div>
                 <label className="block text-sm font-semibold text-earth-700 mb-2">📅 When did you meet?</label>
                 <div className="flex gap-2">
                   <select value={month} onChange={e => setMonth(e.target.value)}
                     className="flex-1 px-3 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50">
-                    {MONTHS.map((m, i) => (
-                      <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
-                    ))}
+                    {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
                   </select>
                   <select value={year} onChange={e => setYear(e.target.value)}
                     className="w-28 px-3 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50">
@@ -566,14 +715,11 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
                   </select>
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-earth-700 mb-2">🏠 Who hosted?</label>
-                <input type="text" value={host} onChange={e => setHost(e.target.value)}
-                  placeholder="e.g. Sarah's place"
+                <input type="text" value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. Sarah's place"
                   className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50" />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-earth-700 mb-2">🎂 What was the cake?</label>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
@@ -585,9 +731,7 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
                         <span className="bg-white rounded-full px-3 py-1.5 text-sm font-medium text-earth-700">⏳ Uploading…</span>
                       </div>
                     )}
-                    {!uploadingImage && cakeImageUrl && (
-                      <div className="absolute top-2 right-2 bg-white/90 rounded-full px-2 py-0.5 text-xs font-medium text-forest-700">✓ Saved</div>
-                    )}
+                    {!uploadingImage && cakeImageUrl && <div className="absolute top-2 right-2 bg-white/90 rounded-full px-2 py-0.5 text-xs font-medium text-forest-700">✓ Saved</div>}
                     <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                       className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
                   </div>
@@ -600,23 +744,19 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
                 )}
                 {uploadError && <p className="text-xs text-amber-600 mb-2">{uploadError}</p>}
                 <textarea value={cakeNote} onChange={e => setCakeNote(e.target.value)}
-                  placeholder="e.g. Lemon drizzle with lavender frosting — incredible"
-                  rows={2}
+                  placeholder="e.g. Lemon drizzle with lavender frosting — incredible" rows={2}
                   className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50 resize-none" />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-earth-700 mb-2">✍️ What made this night special?</label>
                 <textarea value={editorNote} onChange={e => setEditorNote(e.target.value)}
-                  placeholder="A few lines about the conversation or what you'll always remember…"
-                  rows={4} maxLength={400}
+                  placeholder="A few lines about the conversation or what you'll always remember…" rows={4} maxLength={400}
                   className="w-full px-4 py-2.5 rounded-xl border border-earth-200 text-sm focus:outline-none focus:ring-2 focus:ring-terracotta-300 bg-earth-50 resize-none" />
                 <p className="text-xs text-earth-400 text-right mt-1">{editorNote.length}/400</p>
               </div>
             </div>
           )}
         </div>
-
         {step === 'details' && (
           <div className="px-5 py-4 border-t border-earth-100 shrink-0">
             <button onClick={handleSave} disabled={!selectedBook}
@@ -633,8 +773,9 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: AddPastMeetingModalPr
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Events() {
-  const { events, clubBooks, addPastClubBook, addBook } = useApp();
-  const [showAddModal, setShowAddModal] = useState(false);
+  const { events, clubBooks, currentUser, addPastClubBook, addBook } = useApp();
+  const [showAddModal, setShowAddModal]     = useState(false);
+  const [showNewMeeting, setShowNewMeeting] = useState(false);
 
   const upcoming  = events.filter(e => isUpcoming(e.date)).sort((a, b) => a.date.localeCompare(b.date));
   const pastBooks = [...clubBooks.filter(cb => cb.status === 'read')]
@@ -646,7 +787,15 @@ export default function Events() {
 
         {/* ── Upcoming ─────────────────────────────────────────────────────── */}
         <div>
-          <p className="text-xs font-semibold text-earth-400 uppercase tracking-widest mb-3">Coming up</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-earth-400 uppercase tracking-widest">Coming up</p>
+            {currentUser?.isAdmin && (
+              <button onClick={() => setShowNewMeeting(true)}
+                className="text-xs font-medium text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 border border-terracotta-200 px-3 py-1.5 rounded-full transition-colors">
+                + New meeting
+              </button>
+            )}
+          </div>
           {upcoming.length > 0 ? (
             <div className="space-y-3">
               {upcoming.map(e => <UpcomingEventCard key={e.id} event={e} />)}
@@ -655,7 +804,12 @@ export default function Events() {
             <div className="bg-white rounded-2xl border border-dashed border-earth-300 p-6 text-center">
               <p className="text-2xl mb-1">📅</p>
               <p className="font-serif text-earth-600 font-semibold text-sm">No meetings scheduled yet</p>
-              <p className="text-earth-400 text-xs mt-1">Check back soon.</p>
+              {currentUser?.isAdmin && (
+                <button onClick={() => setShowNewMeeting(true)}
+                  className="mt-3 px-4 py-2 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 transition-colors">
+                  Schedule one →
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -664,25 +818,25 @@ export default function Events() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-earth-400 uppercase tracking-widest">Past Meetings</p>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="text-xs font-medium text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 border border-terracotta-200 px-3 py-1.5 rounded-full transition-colors"
-            >
-              + Add a past meeting
-            </button>
+            {currentUser?.isAdmin && (
+              <button onClick={() => setShowAddModal(true)}
+                className="text-xs font-medium text-terracotta-600 hover:text-terracotta-700 bg-terracotta-50 border border-terracotta-200 px-3 py-1.5 rounded-full transition-colors">
+                + Add a past meeting
+              </button>
+            )}
           </div>
 
           {pastBooks.length === 0 ? (
             <div className="bg-white rounded-2xl border border-dashed border-earth-300 p-8 text-center">
               <p className="text-3xl mb-2">📚</p>
               <p className="font-serif text-earth-600 font-semibold">No meeting history yet</p>
-              <p className="text-earth-400 text-sm mt-1">Add the books you've already read together — every meeting counts.</p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="mt-4 px-5 py-2.5 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 transition-colors"
-              >
-                Add your first meeting →
-              </button>
+              <p className="text-earth-400 text-sm mt-1">Add the books you've already read together.</p>
+              {currentUser?.isAdmin && (
+                <button onClick={() => setShowAddModal(true)}
+                  className="mt-4 px-5 py-2.5 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 transition-colors">
+                  Add your first meeting →
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-5">
@@ -694,12 +848,9 @@ export default function Events() {
       </div>
 
       {showAddModal && (
-        <AddPastMeetingModal
-          onClose={() => setShowAddModal(false)}
-          onSave={addPastClubBook}
-          addBook={addBook}
-        />
+        <AddPastMeetingModal onClose={() => setShowAddModal(false)} onSave={addPastClubBook} addBook={addBook} />
       )}
+      {showNewMeeting && <EditEventModal onClose={() => setShowNewMeeting(false)} />}
     </Layout>
   );
 }

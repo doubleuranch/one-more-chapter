@@ -80,6 +80,7 @@ export interface ClubEvent {
   virtualLink?: string;
   bookId?: string;
   description?: string;
+  host?: string;
   rsvps: { userId: string; status: 'yes' | 'maybe' | 'no' }[];
   createdBy: string;
 }

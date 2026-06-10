@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User, Book, UserBook, ClubBook, ClubBookStatus, FeedItem, Rating, BookStatus, BookFormat, SwapBook, SwapRequest, ClubEvent, Notification } from '../types';
-import { MOCK_EVENTS, MOCK_NOTIFICATIONS } from '../data/mockData';
+import { MOCK_NOTIFICATIONS } from '../data/mockData';
 import { generateId } from '../lib/utils';
 import { supabase, signOut as supabaseSignOut, consumeInviteCode } from '../lib/supabase';
 
@@ -50,6 +50,9 @@ interface AppContextValue extends AppState {
   // Events
   rsvpEvent: (eventId: string, status: 'yes' | 'maybe' | 'no') => void;
   setEventBook: (eventId: string, bookId: string) => void;
+  addEvent: (title: string, date: string, time?: string, location?: string, description?: string, host?: string) => Promise<void>;
+  updateEvent: (eventId: string, updates: Partial<Pick<ClubEvent, 'title' | 'date' | 'time' | 'location' | 'description' | 'host' | 'bookId'>>) => void;
+  deleteEvent: (eventId: string) => void;
   // Notifications
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -64,7 +67,7 @@ interface AppContextValue extends AppState {
   removeNomination: (clubBookId: string) => void;
   setClubBookStatus: (clubBookId: string, status: ClubBookStatus) => void;
   addPastClubBook: (bookId: string, startDate: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => void;
-  updateClubBookMeta: (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => void;
+  updateClubBookMeta: (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string, startDate?: string) => void;
   // Profile setup (for new invited users)
   needsProfileSetup: boolean;
   completeProfileSetup: (displayName: string, username: string, avatarColor: string) => Promise<void>;
@@ -81,8 +84,8 @@ const LOGGED_OUT_STATE: AppState = {
   feedItems: [],
   swapBooks: [],
   swapRequests: [],
-  events: MOCK_EVENTS,        // keep until Events table is wired up
-  notifications: MOCK_NOTIFICATIONS, // keep until Notifications table is wired up
+  events: [],
+  notifications: MOCK_NOTIFICATIONS,
   loading: false,
   initialized: true,
   needsProfileSetup: false,
@@ -111,6 +114,8 @@ async function loadAllData(
       followsResult,
       swapBooksResult,
       swapRequestsResult,
+      eventsResult,
+      rsvpsResult,
     ] = await Promise.allSettled([
       supabase.from('profiles').select('*'),
       supabase.from('books').select('*'),
@@ -120,6 +125,8 @@ async function loadAllData(
       supabase.from('follows').select('*'),
       supabase.from('swap_books').select('*'),
       supabase.from('swap_requests').select('*'),
+      supabase.from('club_events').select('*').order('date', { ascending: true }),
+      supabase.from('event_rsvps').select('*'),
     ]);
 
     const ok = <T,>(r: PromiseSettledResult<{ data: T[] | null; error: unknown }>): T[] =>
@@ -133,6 +140,8 @@ async function loadAllData(
     const followsRaw   = ok<any>(followsResult);
     const swapBooksRaw = ok<any>(swapBooksResult);
     const swapRequestsRaw = ok<any>(swapRequestsResult);
+    const eventsRaw = ok<any>(eventsResult);
+    const rsvpsRaw  = ok<any>(rsvpsResult);
 
     // Map profiles → User
     const users: User[] = profiles.map((p: any) => ({
@@ -230,6 +239,22 @@ async function loadAllData(
       createdAt: r.created_at?.split('T')[0] ?? new Date().toISOString().split('T')[0],
     }));
 
+    // Map events
+    const events: ClubEvent[] = eventsRaw.map((e: any) => ({
+      id: e.id,
+      title: e.title,
+      date: e.date,
+      time: e.time ?? '',
+      location: e.location ?? undefined,
+      bookId: e.book_id ?? undefined,
+      description: e.description ?? undefined,
+      host: e.host ?? undefined,
+      rsvps: rsvpsRaw
+        .filter((r: any) => r.event_id === e.id)
+        .map((r: any) => ({ userId: r.user_id, status: r.status as 'yes' | 'maybe' | 'no' })),
+      createdBy: e.created_by ?? '',
+    }));
+
     const currentUser = users.find(u => u.id === authUserId) ?? null;
     // Detect newly invited users who haven't completed their profile yet
     const currentUserProfile = profiles.find((p: any) => p.id === authUserId);
@@ -244,6 +269,7 @@ async function loadAllData(
       feedItems,
       swapBooks,
       swapRequests,
+      events,
       currentUser,
       needsProfileSetup,
       loading: false,
@@ -269,7 +295,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     feedItems: [],
     swapBooks: [],
     swapRequests: [],
-    events: MOCK_EVENTS,
+    events: [],
     notifications: MOCK_NOTIFICATIONS,
     loading: true,
     initialized: false,
@@ -553,11 +579,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  const updateClubBookMeta = (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => {
+  const updateClubBookMeta = (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string, startDate?: string) => {
     setState(s => ({
       ...s,
       clubBooks: s.clubBooks.map(cb =>
-        cb.id === clubBookId ? { ...cb, host, cakeNote, cakeImageUrl, editorNote } : cb
+        cb.id === clubBookId
+          ? { ...cb, host, cakeNote, cakeImageUrl, editorNote, ...(startDate ? { startDate } : {}) }
+          : cb
       ),
     }));
     bg(supabase.from('club_books').update({
@@ -565,6 +593,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cake_note: cakeNote ?? null,
       cake_image_url: cakeImageUrl ?? null,
       editor_note: editorNote ?? null,
+      ...(startDate ? { start_date: startDate, end_date: startDate } : {}),
     }).eq('id', clubBookId));
   };
 
@@ -758,6 +787,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return { ...ev, rsvps };
       }),
     }));
+    bg(supabase.from('event_rsvps').upsert(
+      { event_id: eventId, user_id: userId, status },
+      { onConflict: 'event_id,user_id' }
+    ));
   };
 
   const setEventBook = (eventId: string, bookId: string) => {
@@ -765,7 +798,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...s,
       events: s.events.map(ev => ev.id === eventId ? { ...ev, bookId } : ev),
     }));
-    // When the events table is in Supabase, add: bg(supabase.from('events').update({ book_id: bookId }).eq('id', eventId));
+    bg(supabase.from('club_events').update({ book_id: bookId }).eq('id', eventId));
+  };
+
+  const updateEvent = (eventId: string, updates: Partial<Pick<ClubEvent, 'title' | 'date' | 'time' | 'location' | 'description' | 'host' | 'bookId'>>) => {
+    setState(s => ({
+      ...s,
+      events: s.events.map(ev => ev.id === eventId ? { ...ev, ...updates } : ev),
+    }));
+    const dbUp: Record<string, unknown> = {};
+    if (updates.title       !== undefined) dbUp.title       = updates.title;
+    if (updates.date        !== undefined) dbUp.date        = updates.date;
+    if (updates.time        !== undefined) dbUp.time        = updates.time;
+    if (updates.location    !== undefined) dbUp.location    = updates.location ?? null;
+    if (updates.description !== undefined) dbUp.description = updates.description ?? null;
+    if (updates.host        !== undefined) dbUp.host        = updates.host ?? null;
+    if (updates.bookId      !== undefined) dbUp.book_id     = updates.bookId ?? null;
+    bg(supabase.from('club_events').update(dbUp).eq('id', eventId));
+  };
+
+  const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string) => {
+    if (!state.currentUser) return;
+    const { data, error } = await supabase.from('club_events').insert({
+      title, date,
+      time: time ?? '',
+      location: location ?? null,
+      description: description ?? null,
+      host: host ?? null,
+      created_by: state.currentUser.id,
+    }).select().single();
+    if (!error && data) {
+      const newEvent: ClubEvent = {
+        id: data.id, title: data.title, date: data.date,
+        time: data.time ?? '', location: data.location ?? undefined,
+        description: data.description ?? undefined, host: data.host ?? undefined,
+        bookId: undefined, rsvps: [], createdBy: data.created_by ?? '',
+      };
+      setState(s => ({ ...s, events: [...s.events, newEvent].sort((a, b) => a.date.localeCompare(b.date)) }));
+    }
+  };
+
+  const deleteEvent = (eventId: string) => {
+    setState(s => ({ ...s, events: s.events.filter(ev => ev.id !== eventId) }));
+    bg(supabase.from('club_events').delete().eq('id', eventId));
   };
 
   // ── Notifications ─────────────────────────────────────────────────────────────
@@ -895,6 +970,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fulfillWishRequest,
       rsvpEvent,
       setEventBook,
+      addEvent,
+      updateEvent,
+      deleteEvent,
       markNotificationRead,
       markAllNotificationsRead,
       unreadCount,
