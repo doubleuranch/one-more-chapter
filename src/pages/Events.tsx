@@ -175,6 +175,19 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
   const handleSave = async () => {
     if (!selectedBook || !date) return;
     setSaving(true);
+
+    // Ensure the book exists in DB before saving the event (FK constraint)
+    await supabase.from('books').upsert({
+      id: selectedBook.id,
+      title: selectedBook.title,
+      author: selectedBook.author,
+      cover_url: selectedBook.coverUrl ?? null,
+      description: selectedBook.description ?? '',
+      published_year: selectedBook.publishedYear ?? 0,
+      genre: selectedBook.genre ?? 'Fiction',
+      page_count: selectedBook.pageCount ?? 0,
+    }, { onConflict: 'id', ignoreDuplicates: true });
+
     if (isNew) {
       await addEvent(selectedBook.title, date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined, selectedBook.id);
     } else {
