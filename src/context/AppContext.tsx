@@ -375,6 +375,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(updates.displayName !== undefined && { display_name: updates.displayName }),
       ...(updates.bio !== undefined && { bio: updates.bio }),
       ...(updates.avatarColor !== undefined && { avatar_color: updates.avatarColor }),
+      ...(updates.avatarUrl  !== undefined && { avatar_url: updates.avatarUrl }),
     }).eq('id', userId));
   };
 
@@ -510,20 +511,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const nominateBook = (bookId: string) => {
     if (!state.currentUser) return;
-    const newClubBook: ClubBook = {
-      id: generateId(),
-      bookId,
-      status: 'nominated',
-      addedBy: state.currentUser.id,
-      votes: [],
-    };
-    setState(s => ({ ...s, clubBooks: [...s.clubBooks, newClubBook] }));
-    bg(supabase.from('club_books').insert({
-      id: newClubBook.id,
-      book_id: bookId,
-      status: 'nominated',
-      added_by: state.currentUser!.id,
-    }));
+    const userId = state.currentUser.id;
+    // Optimistic add with temp ID; replaced once Supabase returns the real UUID
+    const tempId = `temp_${Math.random().toString(36).slice(2)}`;
+    setState(s => ({ ...s, clubBooks: [...s.clubBooks, { id: tempId, bookId, status: 'nominated', addedBy: userId, votes: [] }] }));
+    supabase.from('club_books').insert({ book_id: bookId, status: 'nominated', added_by: userId })
+      .select('id').single()
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setState(s => ({ ...s, clubBooks: s.clubBooks.map(cb => cb.id === tempId ? { ...cb, id: data.id } : cb) }));
+        } else {
+          // Rollback on failure
+          setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
+        }
+      });
   };
 
   const removeNomination = (clubBookId: string) => {
@@ -551,32 +552,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addPastClubBook = (bookId: string, startDate: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string) => {
     if (!state.currentUser) return;
-    const newClubBook: ClubBook = {
-      id: generateId(),
-      bookId,
-      status: 'read',
-      addedBy: state.currentUser.id,
-      startDate,
-      endDate: startDate,
-      votes: [],
-      host,
-      cakeNote,
-      cakeImageUrl,
-      editorNote,
-    };
-    setState(s => ({ ...s, clubBooks: [...s.clubBooks, newClubBook] }));
-    bg(supabase.from('club_books').insert({
-      id: newClubBook.id,
-      book_id: bookId,
-      status: 'read',
-      added_by: state.currentUser!.id,
-      start_date: startDate,
-      end_date: startDate,
-      host: host ?? null,
-      cake_note: cakeNote ?? null,
-      cake_image_url: cakeImageUrl ?? null,
-      editor_note: editorNote ?? null,
-    }));
+    const userId = state.currentUser.id;
+    const tempId = `temp_${Math.random().toString(36).slice(2)}`;
+    const tempEntry: ClubBook = { id: tempId, bookId, status: 'read', addedBy: userId, startDate, endDate: startDate, votes: [], host, cakeNote, cakeImageUrl, editorNote };
+    setState(s => ({ ...s, clubBooks: [...s.clubBooks, tempEntry] }));
+    supabase.from('club_books').insert({
+      book_id: bookId, status: 'read', added_by: userId,
+      start_date: startDate, end_date: startDate,
+      host: host ?? null, cake_note: cakeNote ?? null,
+      cake_image_url: cakeImageUrl ?? null, editor_note: editorNote ?? null,
+    }).select('id').single().then(({ data, error }) => {
+      if (!error && data) {
+        setState(s => ({ ...s, clubBooks: s.clubBooks.map(cb => cb.id === tempId ? { ...cb, id: data.id } : cb) }));
+      } else {
+        setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
+      }
+    });
   };
 
   const updateClubBookMeta = (clubBookId: string, host?: string, cakeNote?: string, editorNote?: string, cakeImageUrl?: string, startDate?: string) => {
