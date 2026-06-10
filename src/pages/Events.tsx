@@ -149,6 +149,7 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
   const [host, setHost]         = useState(event?.host ?? '');
   const [description, setDescription] = useState(event?.description ?? '');
   const [saving, setSaving]     = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const searchBooks = useCallback(async () => {
     if (!bookQuery.trim()) return;
@@ -189,7 +190,9 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
     }, { onConflict: 'id', ignoreDuplicates: true });
 
     if (isNew) {
-      await addEvent(selectedBook.title, date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined, selectedBook.id);
+      const err = await addEvent(selectedBook.title, date, time.trim() || undefined, location.trim() || undefined, description.trim() || undefined, host.trim() || undefined, selectedBook.id);
+      setSaving(false);
+      if (err) { setSaveError(err); return; }
     } else {
       updateEvent(event!.id, {
         title: selectedBook.title, date, time: time.trim(),
@@ -198,8 +201,8 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
         host: host.trim() || undefined,
         bookId: selectedBook.id,
       });
+      setSaving(false);
     }
-    setSaving(false);
     onClose();
   };
 
@@ -294,6 +297,9 @@ function EditEventModal({ event, onClose }: { event?: ClubEvent; onClose: () => 
           </div>
         </div>
         <div className="px-5 py-4 border-t border-earth-100 shrink-0">
+          {saveError && (
+            <p className="text-xs text-red-500 mb-3 p-2 bg-red-50 rounded-lg">⚠️ {saveError}</p>
+          )}
           <button onClick={handleSave} disabled={!selectedBook || !date || saving}
             className="w-full py-3 bg-terracotta-500 text-white rounded-xl font-semibold text-sm hover:bg-terracotta-600 disabled:opacity-50 transition-colors">
             {saving ? 'Saving…' : isNew ? 'Create meeting' : 'Save changes'}

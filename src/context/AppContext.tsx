@@ -50,7 +50,7 @@ interface AppContextValue extends AppState {
   // Events
   rsvpEvent: (eventId: string, status: 'yes' | 'maybe' | 'no') => void;
   setEventBook: (eventId: string, bookId: string) => void;
-  addEvent: (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string) => Promise<void>;
+  addEvent: (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string) => Promise<string | null>;
   updateEvent: (eventId: string, updates: Partial<Pick<ClubEvent, 'title' | 'date' | 'time' | 'location' | 'description' | 'host' | 'bookId'>>) => void;
   deleteEvent: (eventId: string) => void;
   // Notifications
@@ -808,8 +808,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     bg(supabase.from('events').update(dbUp).eq('id', eventId));
   };
 
-  const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string) => {
-    if (!state.currentUser) return;
+  const addEvent = async (title: string, date: string, time?: string, location?: string, description?: string, host?: string, bookId?: string): Promise<string | null> => {
+    if (!state.currentUser) return 'Not logged in';
     const { data, error } = await supabase.from('events').insert({
       title, date,
       time: time ?? '',
@@ -819,7 +819,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       book_id: bookId ?? null,
       created_by: state.currentUser.id,
     }).select().single();
-    if (!error && data) {
+    if (error) return error.message;
+    if (data) {
       const newEvent: ClubEvent = {
         id: data.id, title: data.title, date: data.date,
         time: data.time ?? '', location: data.location ?? undefined,
@@ -828,6 +829,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       setState(s => ({ ...s, events: [...s.events, newEvent].sort((a, b) => a.date.localeCompare(b.date)) }));
     }
+    return null;
   };
 
   const deleteEvent = (eventId: string) => {
