@@ -15,19 +15,23 @@ export async function signInWithEmail(email: string) {
   })
 }
 
+// Sign up with email + password (requires email confirmations OFF in Supabase Auth settings)
+export async function signUpWithPassword(email: string, password: string) {
+  return supabase.auth.signUp({ email, password })
+}
+
 export async function signOut() {
   return supabase.auth.signOut()
 }
 
-// Check if an invite code is valid and unused
+// Check if an invite code exists (shared/reusable code — no used_by check)
 export async function validateInviteCode(code: string): Promise<boolean> {
   const { data, error } = await supabase
     .from('invite_codes')
-    .select('id, used_by, expires_at')
-    .eq('code', code.toUpperCase())
+    .select('id, expires_at')
+    .ilike('code', code)
     .maybeSingle()
   if (error || !data) return false
-  if (data.used_by) return false
   if (data.expires_at && new Date(data.expires_at) < new Date()) return false
   return true
 }

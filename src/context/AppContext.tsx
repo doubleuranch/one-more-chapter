@@ -298,6 +298,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 username: pending.username,
                 avatar_color: pending.avatarColor,
                 avatar_initials: pending.avatarInitials,
+                profile_complete: true,
               }).eq('id', session.user.id);
               if (pending.inviteCode) {
                 await consumeInviteCode(pending.inviteCode, session.user.id);
