@@ -521,7 +521,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!error && data) {
           setState(s => ({ ...s, clubBooks: s.clubBooks.map(cb => cb.id === tempId ? { ...cb, id: data.id } : cb) }));
         } else {
-          // Rollback on failure
+          console.error('OMC nominateBook error:', JSON.stringify(error));
+          alert('Nominate failed: ' + (error?.message ?? 'unknown error') + ' | code: ' + (error?.code ?? ''));
           setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
         }
       });
