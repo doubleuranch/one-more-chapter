@@ -184,8 +184,34 @@ export default function Profile() {
         {/* Book grid */}
         <div className="px-4 md:px-6 py-5 pb-24 md:pb-6">
           {filtered.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-earth-400 text-sm">Nothing here yet.</p>
+            <div className="text-center py-14">
+              {tab === 'read' && (
+                <>
+                  <p className="text-4xl mb-3">📚</p>
+                  <p className="font-serif text-earth-700 font-semibold text-base">
+                    {isOwn ? 'No books rated yet' : `${profileUser.displayName.split(' ')[0]} hasn't rated any books yet`}
+                  </p>
+                  {isOwn && <p className="text-earth-400 text-sm mt-1">Search for a book and rate it to get started</p>}
+                </>
+              )}
+              {tab === 'currently_reading' && (
+                <>
+                  <p className="text-4xl mb-3">📖</p>
+                  <p className="font-serif text-earth-700 font-semibold text-base">
+                    {isOwn ? 'Nothing in progress' : `${profileUser.displayName.split(' ')[0]} isn't reading anything right now`}
+                  </p>
+                  {isOwn && <p className="text-earth-400 text-sm mt-1">What are you reading right now? Add it to your shelf</p>}
+                </>
+              )}
+              {tab === 'want_to_read' && (
+                <>
+                  <p className="text-4xl mb-3">🔖</p>
+                  <p className="font-serif text-earth-700 font-semibold text-base">
+                    {isOwn ? 'Your TBR pile is empty' : `${profileUser.displayName.split(' ')[0]} hasn't saved any books yet`}
+                  </p>
+                  {isOwn && <p className="text-earth-400 text-sm mt-1">Save books you want to read — they'll live here</p>}
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">

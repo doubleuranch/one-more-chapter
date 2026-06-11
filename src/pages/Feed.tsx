@@ -149,15 +149,25 @@ export default function Feed() {
         /* Feed items tabs */
         filtered.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-4xl mb-3">📖</p>
-            <p className="font-serif text-earth-700 text-lg font-semibold">Nothing here yet</p>
-            <p className="text-earth-400 text-sm mt-1">
-              {tab === 'following'
-                ? 'Follow some readers to see their activity'
-                : tab === 'mine'
-                ? 'Your activity will show up here as you read and rate books'
-                : "Your club hasn't been active lately"}
-            </p>
+            {tab === 'following' ? (
+              <>
+                <p className="text-4xl mb-3">👥</p>
+                <p className="font-serif text-earth-700 text-lg font-semibold">No activity yet</p>
+                <p className="text-earth-400 text-sm mt-1 max-w-xs mx-auto">Follow your fellow readers to see what they're reading and loving</p>
+              </>
+            ) : tab === 'mine' ? (
+              <>
+                <p className="text-4xl mb-3">✍️</p>
+                <p className="font-serif text-earth-700 text-lg font-semibold">Your story starts here</p>
+                <p className="text-earth-400 text-sm mt-1 max-w-xs mx-auto">Rate a book, start reading something, or add to your shelf — it'll show up here</p>
+              </>
+            ) : (
+              <>
+                <p className="text-4xl mb-3">📖</p>
+                <p className="font-serif text-earth-700 text-lg font-semibold">All quiet in the club</p>
+                <p className="text-earth-400 text-sm mt-1">Be the first to rate something this week</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

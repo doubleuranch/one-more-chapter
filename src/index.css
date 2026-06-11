@@ -47,10 +47,35 @@
   50%       { opacity: 0.4; }
 }
 
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes confetti-fall {
+  0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; }
+}
+
+@keyframes thumb-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25); }
+  70%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
 .toast-enter {
   animation: toast-in 0.22s ease-out both;
 }
 
 .skeleton-pulse {
   animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.page-enter {
+  animation: page-enter 0.18s ease-out both;
+}
+
+.thumb-pop {
+  animation: thumb-pop 0.3s ease-out both;
 }

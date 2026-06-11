@@ -2,6 +2,8 @@ import { useApp } from '../context/AppContext';
 import Layout from '../components/Layout';
 import BookCover from '../components/BookCover';
 import UserAvatar from '../components/UserAvatar';
+import { fireConfetti } from '../lib/confetti';
+import { toast } from '../lib/toast';
 
 export default function Voting() {
   const { clubBooks, getBook, getUser, voteForBook, unvoteBook, currentUser, users, setClubBookStatus } = useApp();
@@ -98,7 +100,11 @@ export default function Voting() {
                     </button>
                     {currentUser.isAdmin && (
                       <button
-                        onClick={() => setClubBookStatus(cb.id, 'reading')}
+                        onClick={() => {
+                          setClubBookStatus(cb.id, 'reading');
+                          fireConfetti();
+                          toast.success(`"${book.title}" is the next pick! 🎉`);
+                        }}
                         className="px-3 py-2.5 rounded-xl text-sm font-medium bg-forest-100 text-forest-700 hover:bg-forest-200 transition-colors whitespace-nowrap"
                         title="Make this the club's current pick"
                       >
@@ -115,9 +121,9 @@ export default function Voting() {
 
       {nominated.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-3xl mb-2">📚</p>
-          <p className="font-serif text-earth-700 text-lg">No books nominated yet</p>
-          <p className="text-earth-400 text-sm mt-1">Add books to your Want to Read list to nominate them</p>
+          <p className="text-4xl mb-3">🗳️</p>
+          <p className="font-serif text-earth-700 text-xl font-semibold">No nominations yet</p>
+          <p className="text-earth-400 text-sm mt-1 max-w-xs mx-auto">Search for a book and nominate it — then your club can vote for what to read next</p>
         </div>
       )}
     </Layout>

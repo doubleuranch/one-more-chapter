@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import Nav from './Nav';
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export default function Layout({ children, title, headerRight, noPadding }: Props) {
+  const { pathname } = useLocation();
+
   return (
     <div className="min-h-screen bg-earth-50">
       <Nav />
@@ -18,7 +21,10 @@ export default function Layout({ children, title, headerRight, noPadding }: Prop
             {headerRight && <div>{headerRight}</div>}
           </header>
         )}
-        <main className={noPadding ? 'pb-20 md:pb-0' : 'px-4 md:px-6 py-6 pb-24 md:pb-6 max-w-2xl mx-auto md:mx-0'}>
+        <main
+          key={pathname}
+          className={`page-enter ${noPadding ? 'pb-20 md:pb-0' : 'px-4 md:px-6 py-6 pb-24 md:pb-6 max-w-2xl mx-auto md:mx-0'}`}
+        >
           {children}
         </main>
       </div>
