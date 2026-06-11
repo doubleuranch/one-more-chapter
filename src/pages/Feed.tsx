@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import ActivityItem from '../components/ActivityItem';
 import UserAvatar from '../components/UserAvatar';
 import BookCover from '../components/BookCover';
+import { SkeletonActivityItem } from '../components/Skeleton';
 import { timeAgo } from '../lib/utils';
 import type { Notification } from '../types';
 
@@ -21,7 +22,7 @@ type Tab = 'all' | 'following' | 'for_you' | 'mine';
 
 export default function Feed() {
   const navigate = useNavigate();
-  const { feedItems, currentUser, notifications, getUser, getBook, markNotificationRead, markAllNotificationsRead, unreadCount } = useApp();
+  const { feedItems, currentUser, notifications, getUser, getBook, markNotificationRead, markAllNotificationsRead, unreadCount, loading } = useApp();
   const [tab, setTab] = useState<Tab>('all');
 
   const myNotifs = notifications
@@ -140,6 +141,10 @@ export default function Feed() {
             </div>
           </div>
         )
+      ) : loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => <SkeletonActivityItem key={i} />)}
+        </div>
       ) : (
         /* Feed items tabs */
         filtered.length === 0 ? (

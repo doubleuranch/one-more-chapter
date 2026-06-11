@@ -4,6 +4,7 @@ import { searchGoogleBooks } from '../lib/googleBooks';
 import type { GoogleBook } from '../types';
 import Layout from '../components/Layout';
 import BookCard from '../components/BookCard';
+import { SkeletonBookCard } from '../components/Skeleton';
 
 export default function Search() {
   const { books, addBook } = useApp();
@@ -83,9 +84,8 @@ export default function Search() {
           </div>
         </>
       ) : loading ? (
-        <div className="text-center py-16">
-          <div className="inline-block w-8 h-8 border-2 border-earth-300 border-t-terracotta-500 rounded-full animate-spin" />
-          <p className="text-earth-400 text-sm mt-3">Searching books…</p>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonBookCard key={i} />)}
         </div>
       ) : results.length === 0 ? (
         <div className="text-center py-16">

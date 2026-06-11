@@ -3,6 +3,7 @@ import type { User, Book, UserBook, ClubBook, ClubBookStatus, FeedItem, Rating, 
 import { MOCK_NOTIFICATIONS } from '../data/mockData';
 import { generateId } from '../lib/utils';
 import { supabase, signOut as supabaseSignOut, consumeInviteCode } from '../lib/supabase';
+import { toast } from '../lib/toast';
 
 // ─── State shape ───────────────────────────────────────────────────────────────
 
@@ -377,6 +378,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(updates.avatarColor !== undefined && { avatar_color: updates.avatarColor }),
       ...(updates.avatarUrl  !== undefined && { avatar_url: updates.avatarUrl }),
     }).eq('id', userId));
+    toast.success('Profile saved!');
   };
 
   // ── Books ─────────────────────────────────────────────────────────────────────
@@ -417,6 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const feedItem: FeedItem = { id: `f_${generateId()}`, userId, type: 'rated', bookId, rating, hotTake, timestamp: now };
       return { ...s, userBooks: newUserBooks, feedItems: [feedItem, ...s.feedItems] };
     });
+    toast.success('Rating saved!');
     // Ensure book row exists first, then upsert user_book
     const book = state.books.find(b => b.id === bookId);
     const bookUpsert = book ? persistBook(book) : Promise.resolve();
@@ -450,6 +453,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const feedItem: FeedItem = { id: `f_${generateId()}`, userId, type, bookId, timestamp: now };
       return { ...s, userBooks: newUserBooks, feedItems: [feedItem, ...s.feedItems] };
     });
+    const msg = status === 'currently_reading' ? 'Now reading!' : 'Added to your shelf!';
+    toast.success(msg);
     const book = state.books.find(b => b.id === bookId);
     const bookUpsert = book ? persistBook(book) : Promise.resolve();
     bookUpsert.then(() =>
@@ -471,6 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...s,
       userBooks: s.userBooks.filter(ub => !(ub.bookId === bookId && ub.userId === userId)),
     }));
+    toast.info('Removed from shelf');
     bg(supabase.from('user_books').delete()
       .eq('user_id', userId)
       .eq('book_id', bookId));
@@ -489,6 +495,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : cb
       ),
     }));
+    toast.success('Vote cast!');
     bg(supabase.from('votes')
       .insert({ user_id: userId, club_book_id: clubBookId }));
   };
@@ -504,6 +511,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : cb
       ),
     }));
+    toast.info('Vote removed');
     bg(supabase.from('votes').delete()
       .eq('user_id', userId)
       .eq('club_book_id', clubBookId));
@@ -515,6 +523,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Optimistic add with temp ID; replaced once Supabase returns the real UUID
     const tempId = `temp_${Math.random().toString(36).slice(2)}`;
     setState(s => ({ ...s, clubBooks: [...s.clubBooks, { id: tempId, bookId, status: 'nominated', addedBy: userId, votes: [] }] }));
+    toast.success('Book nominated!');
     supabase.from('club_books').insert({ book_id: bookId, status: 'nominated', added_by: userId })
       .select('id').single()
       .then(({ data, error }) => {
@@ -523,6 +532,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else {
           console.error('nominateBook error:', error);
           setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
+          toast.error('Nomination failed — try again');
         }
       });
   };
@@ -593,6 +603,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const followUser = (userId: string) => {
     if (!state.currentUser) return;
     const myId = state.currentUser.id;
+    const name = state.users.find(u => u.id === userId)?.displayName ?? 'them';
     setState(s => ({
       ...s,
       currentUser: s.currentUser ? { ...s.currentUser, following: [...s.currentUser.following, userId] } : null,
@@ -602,6 +613,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return u;
       }),
     }));
+    toast.success(`Following ${name}!`);
     bg(supabase.from('follows')
       .insert({ follower_id: myId, following_id: userId }));
   };
@@ -609,6 +621,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const unfollowUser = (userId: string) => {
     if (!state.currentUser) return;
     const myId = state.currentUser.id;
+    const name = state.users.find(u => u.id === userId)?.displayName ?? 'them';
     setState(s => ({
       ...s,
       currentUser: s.currentUser ? { ...s.currentUser, following: s.currentUser.following.filter(id => id !== userId) } : null,
@@ -618,6 +631,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return u;
       }),
     }));
+    toast.info(`Unfollowed ${name}`);
     bg(supabase.from('follows').delete()
       .eq('follower_id', myId)
       .eq('following_id', userId));
