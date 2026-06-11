@@ -34,43 +34,46 @@ const CAKE_SIZES = [
   { label: 'Full',   dim: 0    }, // 0 = no resize
 ] as const;
 
-interface ResizeResult { blob: Blob; previewUrl: string; width: number; height: number; }
+interface ResizeResult { blob: Blob; previewUrl: string; width: number; height: number; wasResized: boolean; }
 
+// FileReader-based approach avoids URL revocation timing issues
 async function resizeCakeImage(file: File, maxDim: number): Promise<ResizeResult> {
-  return new Promise(resolve => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-
-      const nw = img.naturalWidth;
-      const nh = img.naturalHeight;
-
-      const toResult = (blob: Blob, dataUrl: string, w: number, h: number) =>
-        resolve({ blob, previewUrl: dataUrl, width: w, height: h });
-
-      // No resize — still produce a data URL
-      if (maxDim === 0 || (nw <= maxDim && nh <= maxDim)) {
-        const reader = new FileReader();
-        reader.onload = e => toResult(file, e.target!.result as string, nw, nh);
-        reader.readAsDataURL(file);
-        return;
-      }
-
-      const scale = Math.min(maxDim / nw, maxDim / nh);
-      const w = Math.round(nw * scale);
-      const h = Math.round(nh * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-      const byteStr = atob(dataUrl.split(',')[1]);
-      const arr = new Uint8Array(byteStr.length);
-      for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
-      toResult(new Blob([arr], { type: 'image/jpeg' }), dataUrl, w, h);
-    };
-    img.src = url;
+  // Step 1: read file as data URL
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target!.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
+
+  // Step 2: load into image to get natural dimensions
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload  = () => resolve(el);
+    el.onerror = reject;
+    el.src = dataUrl;
+  });
+
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+
+  // No resize needed
+  if (maxDim === 0 || (nw <= maxDim && nh <= maxDim)) {
+    return { blob: file, previewUrl: dataUrl, width: nw, height: nh, wasResized: false };
+  }
+
+  // Resize via canvas
+  const scale = Math.min(maxDim / nw, maxDim / nh);
+  const w = Math.round(nw * scale);
+  const h = Math.round(nh * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+  const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+  const byteStr = atob(resizedDataUrl.split(',')[1]);
+  const arr = new Uint8Array(byteStr.length);
+  for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+  return { blob: new Blob([arr], { type: 'image/jpeg' }), previewUrl: resizedDataUrl, width: w, height: h, wasResized: true };
 }
 
 // ─── Club rating bar ──────────────────────────────────────────────────────────
@@ -485,16 +488,16 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
   const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
-  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number } | null>(null);
+  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number; wasResized: boolean } | null>(null);
 
   const uploadCakeImage = async (file: File, dim: number) => {
     setUploadingImage(true);
     setCakeImageUrl(null);
     setUploadError(null);
     try {
-      const { blob, previewUrl, width, height } = await resizeCakeImage(file, dim);
+      const { blob, previewUrl, width, height, wasResized } = await resizeCakeImage(file, dim);
       setCakeImagePreview(previewUrl);
-      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024) });
+      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024), wasResized });
       const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const contentType = dim === 0 ? file.type : 'image/jpeg';
@@ -596,7 +599,7 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
                     </div>
                     {resizeInfo && !uploadingImage && (
                       <p className="text-xs text-earth-400">
-                        📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}
+                        📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}{!resizeInfo.wasResized ? ' · already fits' : ''}
                       </p>
                     )}
                   </div>
@@ -794,7 +797,7 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
   const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
-  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number } | null>(null);
+  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number; wasResized: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadCakeImage = async (file: File, dim: number) => {
@@ -802,9 +805,9 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
     setCakeImageUrl(null);
     setUploadError(null);
     try {
-      const { blob, previewUrl, width, height } = await resizeCakeImage(file, dim);
+      const { blob, previewUrl, width, height, wasResized } = await resizeCakeImage(file, dim);
       setCakeImagePreview(previewUrl);
-      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024) });
+      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024), wasResized });
       const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const contentType = dim === 0 ? file.type : 'image/jpeg';
@@ -959,7 +962,7 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
                       </div>
                       {resizeInfo && !uploadingImage && (
                         <p className="text-xs text-earth-400">
-                          📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}
+                          📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}{!resizeInfo.wasResized ? ' · already fits' : ''}
                         </p>
                       )}
                     </div>
