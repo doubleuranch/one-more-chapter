@@ -33,7 +33,7 @@ export default function ActivityItem({ item }: Props) {
   return (
     <div className="bg-white rounded-2xl border border-earth-200 p-4 flex gap-3">
       <button onClick={() => navigate(`/profile/${user.username}`)} className="shrink-0">
-        <UserAvatar initials={user.avatarInitials} color={user.avatarColor} size="md" />
+        <UserAvatar initials={user.avatarInitials} color={user.avatarColor} src={user.avatarUrl} size="md" />
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-2">
