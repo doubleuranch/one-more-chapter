@@ -116,7 +116,7 @@ export default function Feed() {
                   >
                     <div className="shrink-0 relative">
                       {fromUser ? (
-                        <UserAvatar initials={fromUser.avatarInitials} color={fromUser.avatarColor} size="sm" />
+                        <UserAvatar initials={fromUser.avatarInitials} color={fromUser.avatarColor} src={fromUser.avatarUrl} size="sm" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-earth-200 flex items-center justify-center text-base">
                           {NOTIF_ICONS[notif.type]}

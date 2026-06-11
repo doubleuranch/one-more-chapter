@@ -81,7 +81,7 @@ export default function ClubShelf() {
                       </button>
                       {nominator && (
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <UserAvatar initials={nominator.avatarInitials} color={nominator.avatarColor} size="xs" />
+                          <UserAvatar initials={nominator.avatarInitials} color={nominator.avatarColor} src={nominator.avatarUrl} size="xs" />
                           <span className="text-xs text-earth-400">by {nominator.displayName.split(' ')[0]}</span>
                         </div>
                       )}
@@ -107,7 +107,7 @@ export default function ClubShelf() {
                     <div className="flex items-center gap-1 mb-3">
                       {cb.votes.slice(0, 6).map(uid => {
                         const u = users.find(u => u.id === uid);
-                        return u ? <UserAvatar key={uid} initials={u.avatarInitials} color={u.avatarColor} size="xs" /> : null;
+                        return u ? <UserAvatar key={uid} initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="xs" /> : null;
                       })}
                       {cb.votes.length > 6 && <span className="text-xs text-earth-400">+{cb.votes.length - 6}</span>}
                     </div>

@@ -434,7 +434,7 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
               {event.rsvps.filter(r => r.status === 'yes').map(r => {
                 const u = getUser(r.userId);
                 if (!u) return null;
-                return <UserAvatar key={r.userId} initials={u.avatarInitials} color={u.avatarColor} size="xs" className="ring-2 ring-white" />;
+                return <UserAvatar key={r.userId} initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="xs" className="ring-2 ring-white" />;
               })}
             </div>
             <p className="text-xs text-earth-400">
@@ -723,7 +723,7 @@ function PastMeetingCard({ clubBookId }: { clubBookId: string }) {
             return (
               <div key={r.userId} className="flex gap-3">
                 <button onClick={() => navigate(`/profile/${u.username}`)} className="shrink-0 mt-0.5">
-                  <UserAvatar initials={u.avatarInitials} color={u.avatarColor} size="xs" />
+                  <UserAvatar initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="xs" />
                 </button>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-earth-500 mb-0.5">

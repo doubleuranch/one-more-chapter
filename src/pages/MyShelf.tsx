@@ -105,7 +105,7 @@ export default function MyShelf() {
                       className="absolute -top-2 -right-2 ring-2 ring-white rounded-full"
                       title={`${recommender.displayName.split(' ')[0]} mentioned this`}
                     >
-                      <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} size="xs" />
+                      <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} src={recommender.avatarUrl} size="xs" />
                     </div>
                   )}
                   {/* Progress bar for currently reading */}

@@ -36,7 +36,7 @@ function RecommendModal({ bookId, onClose }: { bookId: string; onClose: () => vo
                 sent === u.id ? 'bg-forest-100 text-forest-700' : 'bg-earth-50 hover:bg-earth-100 text-earth-800'
               }`}
             >
-              <UserAvatar initials={u.avatarInitials} color={u.avatarColor} size="sm" />
+              <UserAvatar initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="sm" />
               <div>
                 <p className="font-medium text-sm">{u.displayName}</p>
                 <p className="text-xs text-earth-400">@{u.username}</p>
@@ -74,7 +74,7 @@ function WhoMentionedSheet({
               onClick={() => onSave(u.id)}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left bg-earth-50 hover:bg-earth-100 text-earth-800 transition-colors"
             >
-              <UserAvatar initials={u.avatarInitials} color={u.avatarColor} size="sm" />
+              <UserAvatar initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="sm" />
               <div>
                 <p className="font-medium text-sm">{u.displayName}</p>
                 <p className="text-xs text-earth-400">@{u.username}</p>
@@ -405,7 +405,7 @@ export default function BookDetail() {
                 return (
                   <div key={entry.id} className="bg-white rounded-2xl border border-earth-200 p-4 flex gap-3">
                     <button onClick={() => navigate(`/profile/${u.username}`)}>
-                      <UserAvatar initials={u.avatarInitials} color={u.avatarColor} size="sm" />
+                      <UserAvatar initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="sm" />
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">

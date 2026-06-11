@@ -156,7 +156,7 @@ export default function Profile() {
                     <div className="relative">
                       <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-full shadow-sm group-hover:shadow-md transition-shadow" />
                       <div className="absolute -top-2 -right-2 ring-2 ring-white rounded-full">
-                        <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} size="xs" />
+                        <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} src={recommender.avatarUrl} size="xs" />
                       </div>
                     </div>
                     <p className="font-serif text-earth-800 text-xs font-semibold mt-2 leading-tight line-clamp-2">{book.title}</p>
@@ -225,7 +225,7 @@ export default function Profile() {
                       <BookCover src={book.coverUrl} title={book.title} author={book.author} className="w-full shadow-sm" />
                       {recommender && (
                         <div className="absolute -top-2 -right-2 ring-2 ring-white rounded-full" title={`${recommender.displayName.split(' ')[0]} mentioned this`}>
-                          <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} size="xs" />
+                          <UserAvatar initials={recommender.avatarInitials} color={recommender.avatarColor} src={recommender.avatarUrl} size="xs" />
                         </div>
                       )}
                     </div>

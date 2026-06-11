@@ -53,7 +53,7 @@ export default function Voting() {
                     <p className="text-earth-400 text-sm">{book.author}</p>
                     {addedBy && (
                       <div className="flex items-center gap-1.5 mt-1.5">
-                        <UserAvatar initials={addedBy.avatarInitials} color={addedBy.avatarColor} size="xs" />
+                        <UserAvatar initials={addedBy.avatarInitials} color={addedBy.avatarColor} src={addedBy.avatarUrl} size="xs" />
                         <span className="text-xs text-earth-400">nominated by {addedBy.displayName}</span>
                       </div>
                     )}
@@ -78,7 +78,7 @@ export default function Voting() {
                     {cb.votes.slice(0, 5).map(uid => {
                       const u = users.find(u => u.id === uid);
                       if (!u) return null;
-                      return <UserAvatar key={uid} initials={u.avatarInitials} color={u.avatarColor} size="xs" />;
+                      return <UserAvatar key={uid} initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="xs" />;
                     })}
                     {cb.votes.length > 5 && (
                       <span className="text-xs text-earth-400">+{cb.votes.length - 5} more</span>
