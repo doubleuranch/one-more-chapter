@@ -26,6 +26,33 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - i);
 
+// ─── Cake image resize helper ────────────────────────────────────────────────
+
+const CAKE_SIZES = [
+  { label: 'Small',  dim: 600  },
+  { label: 'Medium', dim: 1000 },
+  { label: 'Full',   dim: 0    }, // 0 = no resize
+] as const;
+
+async function resizeCakeImage(file: File, maxDim: number): Promise<Blob> {
+  if (maxDim === 0) return file; // full size — no resize
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (img.width <= maxDim && img.height <= maxDim) { resolve(file); return; }
+      const scale = Math.min(maxDim / img.width, maxDim / img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.88);
+    };
+    img.src = url;
+  });
+}
+
 // ─── Club rating bar ──────────────────────────────────────────────────────────
 
 function ClubRatingBar({ ratings }: { ratings: { rating?: string }[] }) {
@@ -436,18 +463,19 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
   const [cakeImageUrl, setCakeImageUrl]         = useState<string | null>(cb.cakeImageUrl ?? null);
   const [uploadingImage, setUploadingImage]     = useState(false);
   const [uploadError, setUploadError]           = useState<string | null>(null);
+  const [selectedFile, setSelectedFile]         = useState<File | null>(null);
+  const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
 
-  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCakeImagePreview(URL.createObjectURL(file));
+  const uploadCakeImage = async (file: File, dim: number) => {
+    setUploadingImage(true);
     setCakeImageUrl(null);
     setUploadError(null);
-    setUploadingImage(true);
     try {
-      const ext  = file.name.split('.').pop() ?? 'jpg';
+      const blob = await resizeCakeImage(file, dim);
+      const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, file, { upsert: false, contentType: file.type });
+      const contentType = dim === 0 ? file.type : 'image/jpeg';
+      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, blob, { upsert: false, contentType });
       if (uploadErr) throw uploadErr;
       const { data: { publicUrl } } = supabase.storage.from('club-photos').getPublicUrl(path);
       setCakeImageUrl(publicUrl);
@@ -456,6 +484,19 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
     } finally {
       setUploadingImage(false);
     }
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    setCakeImagePreview(URL.createObjectURL(file));
+    await uploadCakeImage(file, cakeSizeDim);
+  };
+
+  const handleSizeChange = async (dim: number) => {
+    setCakeSizeDim(dim);
+    if (selectedFile) await uploadCakeImage(selectedFile, dim);
   };
 
   const handleSave = () => {
@@ -501,15 +542,35 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
             <label className="block text-sm font-semibold text-earth-700 mb-2">🎂 Cake photo & note</label>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
             {cakeImagePreview ? (
-              <div className="relative mb-3 rounded-xl overflow-hidden border border-earth-200">
-                <img src={cakeImagePreview} alt="Cake" className="w-full h-40 object-cover" />
-                {uploadingImage && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <span className="bg-white rounded-full px-3 py-1.5 text-sm font-medium text-earth-700">⏳ Uploading…</span>
+              <div className="mb-3">
+                <div className="relative rounded-xl overflow-hidden border border-earth-200">
+                  <img src={cakeImagePreview} alt="Cake" className="w-full h-40 object-cover" />
+                  {uploadingImage && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="bg-white rounded-full px-3 py-1.5 text-sm font-medium text-earth-700">⏳ Uploading…</span>
+                    </div>
+                  )}
+                  {!uploadingImage && cakeImageUrl && (
+                    <div className="absolute top-2 right-2 bg-white/90 rounded-full px-2 py-0.5 text-xs font-medium text-forest-700">✓ Saved</div>
+                  )}
+                  <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
+                </div>
+                {selectedFile && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-earth-500 shrink-0">Resize:</span>
+                    {CAKE_SIZES.map(s => (
+                      <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
+                          cakeSizeDim === s.dim
+                            ? 'bg-terracotta-500 text-white border-terracotta-500'
+                            : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
+                        }`}>
+                        {s.label}
+                      </button>
+                    ))}
                   </div>
                 )}
-                <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                  className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
               </div>
             ) : (
               <button type="button" onClick={() => fileInputRef.current?.click()}
@@ -701,7 +762,32 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
   const [cakeImageUrl, setCakeImageUrl]         = useState<string | null>(null);
   const [uploadingImage, setUploadingImage]     = useState(false);
   const [uploadError, setUploadError]           = useState<string | null>(null);
+  const [selectedFile, setSelectedFile]         = useState<File | null>(null);
+  const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadCakeImage = async (file: File, dim: number) => {
+    setUploadingImage(true);
+    setCakeImageUrl(null);
+    setUploadError(null);
+    try {
+      const blob = await resizeCakeImage(file, dim);
+      const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
+      const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const contentType = dim === 0 ? file.type : 'image/jpeg';
+      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, blob, { upsert: false, contentType });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('club-photos').getPublicUrl(path);
+      setCakeImageUrl(publicUrl);
+    } catch {
+      setUploadError('Upload failed — image preview is local only.');
+    } finally { setUploadingImage(false); }
+  };
+
+  const handleSizeChange = async (dim: number) => {
+    setCakeSizeDim(dim);
+    if (selectedFile) await uploadCakeImage(selectedFile, dim);
+  };
 
   const search = useCallback(async () => {
     if (!query.trim()) return;
@@ -728,18 +814,9 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSelectedFile(file);
     setCakeImagePreview(URL.createObjectURL(file));
-    setCakeImageUrl(null); setUploadError(null); setUploadingImage(true);
-    try {
-      const ext  = file.name.split('.').pop() ?? 'jpg';
-      const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('club-photos').upload(path, file, { upsert: false, contentType: file.type });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('club-photos').getPublicUrl(path);
-      setCakeImageUrl(publicUrl);
-    } catch {
-      setUploadError('Upload failed — image preview is local only.');
-    } finally { setUploadingImage(false); }
+    await uploadCakeImage(file, cakeSizeDim);
   };
 
   const handleSave = () => {
@@ -820,7 +897,8 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
                 <label className="block text-sm font-semibold text-earth-700 mb-2">🎂 What was the cake?</label>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
                 {cakeImagePreview ? (
-                  <div className="relative mb-3 rounded-xl overflow-hidden border border-earth-200">
+                  <div className="mb-3">
+                  <div className="relative rounded-xl overflow-hidden border border-earth-200">
                     <img src={cakeImagePreview} alt="Cake" className="w-full h-40 object-cover" />
                     {uploadingImage && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -828,8 +906,24 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
                       </div>
                     )}
                     {!uploadingImage && cakeImageUrl && <div className="absolute top-2 right-2 bg-white/90 rounded-full px-2 py-0.5 text-xs font-medium text-forest-700">✓ Saved</div>}
-                    <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                    <button onClick={() => { setCakeImagePreview(null); setCakeImageUrl(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                       className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
+                  </div>
+                  {selectedFile && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-earth-500 shrink-0">Resize:</span>
+                      {CAKE_SIZES.map(s => (
+                        <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
+                            cakeSizeDim === s.dim
+                              ? 'bg-terracotta-500 text-white border-terracotta-500'
+                              : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
+                          }`}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   </div>
                 ) : (
                   <button type="button" onClick={() => fileInputRef.current?.click()}
