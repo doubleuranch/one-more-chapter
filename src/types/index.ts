@@ -13,6 +13,8 @@ export interface User {
   avatarColor: string;
   avatarInitials: string;
   avatarUrl?: string;
+  favoriteAuthor?: string;
+  favoriteBook?: string;
   following: string[];
   followers: string[];
   joinedDate: string;

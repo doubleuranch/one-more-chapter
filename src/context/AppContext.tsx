@@ -25,7 +25,7 @@ interface AppState {
 
 interface AppContextValue extends AppState {
   logout: () => void;
-  updateProfile: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor'>>) => void;
+  updateProfile: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => void;
   rateBook: (bookId: string, rating: Rating, hotTake?: string, vibeTags?: string[], format?: BookFormat) => void;
   setBookStatus: (bookId: string, status: BookStatus, progress?: number, hotTake?: string) => void;
   removeBook: (bookId: string) => void;
@@ -154,6 +154,8 @@ async function loadAllData(
       avatarColor: p.avatar_color ?? '#C4603B',
       avatarInitials: p.avatar_initials,
       avatarUrl: p.avatar_url ?? undefined,
+      favoriteAuthor: p.favorite_author ?? undefined,
+      favoriteBook: p.favorite_book ?? undefined,
       following: followsRaw.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id),
       followers: followsRaw.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id),
       joinedDate: p.created_at?.split('T')[0] ?? '',
@@ -360,7 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ── Profile ───────────────────────────────────────────────────────────────────
-  const updateProfile = (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor'>>) => {
+  const updateProfile = (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => {
     if (!state.currentUser) return;
     const userId = state.currentUser.id;
     setState(s => {
@@ -373,10 +375,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     // Persist columns that exist in the DB
     bg(supabase.from('profiles').update({
-      ...(updates.displayName !== undefined && { display_name: updates.displayName }),
-      ...(updates.bio !== undefined && { bio: updates.bio }),
-      ...(updates.avatarColor !== undefined && { avatar_color: updates.avatarColor }),
-      ...(updates.avatarUrl  !== undefined && { avatar_url: updates.avatarUrl }),
+      ...(updates.displayName    !== undefined && { display_name:    updates.displayName }),
+      ...(updates.bio            !== undefined && { bio:             updates.bio }),
+      ...(updates.avatarColor    !== undefined && { avatar_color:    updates.avatarColor }),
+      ...(updates.avatarUrl      !== undefined && { avatar_url:      updates.avatarUrl }),
+      ...(updates.favoriteAuthor !== undefined && { favorite_author: updates.favoriteAuthor ?? null }),
+      ...(updates.favoriteBook   !== undefined && { favorite_book:   updates.favoriteBook ?? null }),
     }).eq('id', userId));
     toast.success('Profile saved!');
   };

@@ -69,6 +69,16 @@ export default function Profile() {
                 <p className="text-terracotta-600 text-sm italic mt-1">{profileUser.tagline}</p>
               )}
               {profileUser.bio && <p className="text-earth-600 text-sm mt-1.5 leading-snug">{profileUser.bio}</p>}
+              {(profileUser.favoriteAuthor || profileUser.favoriteBook) && (
+                <div className="flex flex-col gap-0.5 mt-2">
+                  {profileUser.favoriteAuthor && (
+                    <p className="text-earth-500 text-xs">✍️ <span className="text-earth-700 font-medium">{profileUser.favoriteAuthor}</span></p>
+                  )}
+                  {profileUser.favoriteBook && (
+                    <p className="text-earth-500 text-xs">📖 <span className="text-earth-700 font-medium">{profileUser.favoriteBook}</span></p>
+                  )}
+                </div>
+              )}
               <div className="flex gap-4 mt-3 text-sm">
                 <span className="text-earth-500"><strong className="text-earth-800">{booksRead}</strong> read</span>
                 <span className="text-earth-500"><strong className="text-earth-800">{profileUser.following.length}</strong> following</span>

@@ -22,7 +22,7 @@ async function resizeImage(file: File, maxDim = 200): Promise<string> {
 
 interface Props {
   user: User;
-  onSave: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor'>>) => void;
+  onSave: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => void;
   onClose: () => void;
 }
 
@@ -30,6 +30,8 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
   const [displayName, setDisplayName] = useState(user.displayName);
   const [bio, setBio] = useState(user.bio);
   const [tagline, setTagline] = useState(user.tagline ?? '');
+  const [favoriteAuthor, setFavoriteAuthor] = useState(user.favoriteAuthor ?? '');
+  const [favoriteBook, setFavoriteBook] = useState(user.favoriteBook ?? '');
   const [avatarColor, setAvatarColor] = useState(user.avatarColor);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user.avatarUrl);
   const [uploading, setUploading] = useState(false);
@@ -46,7 +48,15 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
 
   const handleSave = () => {
     if (!displayName.trim()) return;
-    onSave({ displayName: displayName.trim(), bio: bio.trim(), tagline: tagline.slice(0, 50), avatarUrl, avatarColor });
+    onSave({
+      displayName: displayName.trim(),
+      bio: bio.trim(),
+      tagline: tagline.slice(0, 50),
+      avatarUrl,
+      avatarColor,
+      favoriteAuthor: favoriteAuthor.trim() || undefined,
+      favoriteBook: favoriteBook.trim() || undefined,
+    });
     onClose();
   };
 
@@ -119,7 +129,7 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
           </div>
 
           {/* Bio */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="text-sm font-medium text-earth-700 block mb-1.5">Bio</label>
             <textarea
               value={bio}
@@ -127,6 +137,32 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
               rows={3}
               placeholder="A little about your reading life…"
               className="w-full border border-earth-200 rounded-xl px-4 py-2.5 text-sm text-earth-800 focus:outline-none focus:border-terracotta-400 bg-earth-50 resize-none"
+            />
+          </div>
+
+          {/* Favorite author */}
+          <div className="mb-4">
+            <label className="text-sm font-medium text-earth-700 block mb-1.5">
+              Favorite author <span className="text-earth-400 font-normal">(optional)</span>
+            </label>
+            <input
+              value={favoriteAuthor}
+              onChange={e => setFavoriteAuthor(e.target.value)}
+              placeholder="e.g. Donna Tartt"
+              className="w-full border border-earth-200 rounded-xl px-4 py-2.5 text-sm text-earth-800 focus:outline-none focus:border-terracotta-400 bg-earth-50"
+            />
+          </div>
+
+          {/* Favorite book */}
+          <div className="mb-6">
+            <label className="text-sm font-medium text-earth-700 block mb-1.5">
+              Favorite book <span className="text-earth-400 font-normal">(optional)</span>
+            </label>
+            <input
+              value={favoriteBook}
+              onChange={e => setFavoriteBook(e.target.value)}
+              placeholder="e.g. The Secret History"
+              className="w-full border border-earth-200 rounded-xl px-4 py-2.5 text-sm text-earth-800 focus:outline-none focus:border-terracotta-400 bg-earth-50"
             />
           </div>
 
