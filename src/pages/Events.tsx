@@ -34,20 +34,37 @@ const CAKE_SIZES = [
   { label: 'Full',   dim: 0    }, // 0 = no resize
 ] as const;
 
-async function resizeCakeImage(file: File, maxDim: number): Promise<Blob> {
-  if (maxDim === 0) return file; // full size — no resize
+// Returns { blob, previewUrl } — previewUrl is a data URL so the preview
+// always reflects the actual resized output.
+async function resizeCakeImage(
+  file: File,
+  maxDim: number,
+): Promise<{ blob: Blob; previewUrl: string }> {
   return new Promise(resolve => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      if (img.width <= maxDim && img.height <= maxDim) { resolve(file); return; }
+
+      // No resize needed — still convert to data URL for consistent preview
+      if (maxDim === 0 || (img.width <= maxDim && img.height <= maxDim)) {
+        const reader = new FileReader();
+        reader.onload = e => resolve({ blob: file, previewUrl: e.target!.result as string });
+        reader.readAsDataURL(file);
+        return;
+      }
+
       const scale = Math.min(maxDim / img.width, maxDim / img.height);
       const canvas = document.createElement('canvas');
       canvas.width  = Math.round(img.width  * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.88);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      // Convert data URL → Blob for upload
+      const byteStr = atob(dataUrl.split(',')[1]);
+      const arr = new Uint8Array(byteStr.length);
+      for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+      resolve({ blob: new Blob([arr], { type: 'image/jpeg' }), previewUrl: dataUrl });
     };
     img.src = url;
   });
@@ -471,7 +488,8 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
     setCakeImageUrl(null);
     setUploadError(null);
     try {
-      const blob = await resizeCakeImage(file, dim);
+      const { blob, previewUrl } = await resizeCakeImage(file, dim);
+      setCakeImagePreview(previewUrl); // update preview to show resized result
       const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const contentType = dim === 0 ? file.type : 'image/jpeg';
