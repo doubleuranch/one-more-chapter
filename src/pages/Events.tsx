@@ -34,37 +34,37 @@ const CAKE_SIZES = [
   { label: 'Full',   dim: 0    }, // 0 = no resize
 ] as const;
 
-// Returns { blob, previewUrl } — previewUrl is a data URL so the preview
-// always reflects the actual resized output.
-async function resizeCakeImage(
-  file: File,
-  maxDim: number,
-): Promise<{ blob: Blob; previewUrl: string }> {
+interface ResizeResult { blob: Blob; previewUrl: string; width: number; height: number; }
+
+async function resizeCakeImage(file: File, maxDim: number): Promise<ResizeResult> {
   return new Promise(resolve => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
 
-      // No resize needed — still convert to data URL for consistent preview
+      const toResult = (blob: Blob, dataUrl: string, w: number, h: number) =>
+        resolve({ blob, previewUrl: dataUrl, width: w, height: h });
+
+      // No resize — still produce a data URL
       if (maxDim === 0 || (img.width <= maxDim && img.height <= maxDim)) {
         const reader = new FileReader();
-        reader.onload = e => resolve({ blob: file, previewUrl: e.target!.result as string });
+        reader.onload = e => toResult(file, e.target!.result as string, img.width, img.height);
         reader.readAsDataURL(file);
         return;
       }
 
       const scale = Math.min(maxDim / img.width, maxDim / img.height);
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
       const canvas = document.createElement('canvas');
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-      // Convert data URL → Blob for upload
       const byteStr = atob(dataUrl.split(',')[1]);
       const arr = new Uint8Array(byteStr.length);
       for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
-      resolve({ blob: new Blob([arr], { type: 'image/jpeg' }), previewUrl: dataUrl });
+      toResult(new Blob([arr], { type: 'image/jpeg' }), dataUrl, w, h);
     };
     img.src = url;
   });
@@ -482,14 +482,16 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
   const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
+  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number } | null>(null);
 
   const uploadCakeImage = async (file: File, dim: number) => {
     setUploadingImage(true);
     setCakeImageUrl(null);
     setUploadError(null);
     try {
-      const { blob, previewUrl } = await resizeCakeImage(file, dim);
-      setCakeImagePreview(previewUrl); // update preview to show resized result
+      const { blob, previewUrl, width, height } = await resizeCakeImage(file, dim);
+      setCakeImagePreview(previewUrl);
+      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024) });
       const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const contentType = dim === 0 ? file.type : 'image/jpeg';
@@ -575,18 +577,25 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
                     className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
                 </div>
                 {selectedFile && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-earth-500 shrink-0">Resize:</span>
-                    {CAKE_SIZES.map(s => (
-                      <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
-                        className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
-                          cakeSizeDim === s.dim
-                            ? 'bg-terracotta-500 text-white border-terracotta-500'
-                            : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
-                        }`}>
-                        {s.label}
-                      </button>
-                    ))}
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-earth-500 shrink-0">Resize:</span>
+                      {CAKE_SIZES.map(s => (
+                        <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
+                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
+                            cakeSizeDim === s.dim
+                              ? 'bg-terracotta-500 text-white border-terracotta-500'
+                              : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
+                          }`}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                    {resizeInfo && !uploadingImage && (
+                      <p className="text-xs text-earth-400">
+                        📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -782,6 +791,7 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
   const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
+  const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadCakeImage = async (file: File, dim: number) => {
@@ -789,7 +799,9 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
     setCakeImageUrl(null);
     setUploadError(null);
     try {
-      const blob = await resizeCakeImage(file, dim);
+      const { blob, previewUrl, width, height } = await resizeCakeImage(file, dim);
+      setCakeImagePreview(previewUrl);
+      setResizeInfo({ w: width, h: height, kb: Math.round(blob.size / 1024) });
       const ext  = dim === 0 ? (file.name.split('.').pop() ?? 'jpg') : 'jpg';
       const path = `cakes/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const contentType = dim === 0 ? file.type : 'image/jpeg';
@@ -928,18 +940,25 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
                       className="absolute top-2 left-2 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center text-sm">✕</button>
                   </div>
                   {selectedFile && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs text-earth-500 shrink-0">Resize:</span>
-                      {CAKE_SIZES.map(s => (
-                        <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
-                          className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
-                            cakeSizeDim === s.dim
-                              ? 'bg-terracotta-500 text-white border-terracotta-500'
-                              : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
-                          }`}>
-                          {s.label}
-                        </button>
-                      ))}
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-earth-500 shrink-0">Resize:</span>
+                        {CAKE_SIZES.map(s => (
+                          <button key={s.label} type="button" disabled={uploadingImage} onClick={() => handleSizeChange(s.dim)}
+                            className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-40 ${
+                              cakeSizeDim === s.dim
+                                ? 'bg-terracotta-500 text-white border-terracotta-500'
+                                : 'text-earth-500 border-earth-200 hover:border-terracotta-300 hover:text-terracotta-600'
+                            }`}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      {resizeInfo && !uploadingImage && (
+                        <p className="text-xs text-earth-400">
+                          📐 {resizeInfo.w} × {resizeInfo.h}px · {resizeInfo.kb < 1024 ? `${resizeInfo.kb} KB` : `${(resizeInfo.kb / 1024).toFixed(1)} MB`}
+                        </p>
+                      )}
                     </div>
                   )}
                   </div>
