@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { searchGoogleBooks } from '../lib/googleBooks';
-import type { Book, GoogleBook } from '../types';
+import type { GoogleBook } from '../types';
 import Layout from '../components/Layout';
 import BookCard from '../components/BookCard';
 
@@ -11,25 +11,6 @@ export default function Search() {
   const [results, setResults] = useState<GoogleBook[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-
-  // Register every search result in global state so BookDetail can find it
-  useEffect(() => {
-    results.forEach(gb => {
-      if (!books.find(b => b.id === gb.id)) {
-        const book: Book = {
-          id: gb.id,
-          title: gb.title,
-          author: gb.author,
-          coverUrl: gb.coverUrl,
-          description: gb.description ?? 'No description available.',
-          publishedYear: gb.publishedYear ?? 0,
-          genre: 'Fiction',
-          pageCount: gb.pageCount ?? 0,
-        };
-        addBook(book);
-      }
-    });
-  }, [results]);
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
@@ -56,6 +37,17 @@ export default function Search() {
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
+    });
+
+    // Add all results to state immediately so BookDetail can find them on click
+    deduped.forEach(gb => {
+      if (!books.find(b => b.id === gb.id)) {
+        addBook({
+          id: gb.id, title: gb.title, author: gb.author,
+          coverUrl: gb.coverUrl, description: gb.description ?? '',
+          publishedYear: gb.publishedYear ?? 0, genre: 'Fiction', pageCount: gb.pageCount ?? 0,
+        });
+      }
     });
 
     setResults(deduped);
