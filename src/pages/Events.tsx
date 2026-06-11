@@ -43,20 +43,23 @@ async function resizeCakeImage(file: File, maxDim: number): Promise<ResizeResult
     img.onload = () => {
       URL.revokeObjectURL(url);
 
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+
       const toResult = (blob: Blob, dataUrl: string, w: number, h: number) =>
         resolve({ blob, previewUrl: dataUrl, width: w, height: h });
 
       // No resize — still produce a data URL
-      if (maxDim === 0 || (img.width <= maxDim && img.height <= maxDim)) {
+      if (maxDim === 0 || (nw <= maxDim && nh <= maxDim)) {
         const reader = new FileReader();
-        reader.onload = e => toResult(file, e.target!.result as string, img.width, img.height);
+        reader.onload = e => toResult(file, e.target!.result as string, nw, nh);
         reader.readAsDataURL(file);
         return;
       }
 
-      const scale = Math.min(maxDim / img.width, maxDim / img.height);
-      const w = Math.round(img.width  * scale);
-      const h = Math.round(img.height * scale);
+      const scale = Math.min(maxDim / nw, maxDim / nh);
+      const w = Math.round(nw * scale);
+      const h = Math.round(nh * scale);
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
