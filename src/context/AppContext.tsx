@@ -168,7 +168,7 @@ async function loadAllData(
     // API so their IDs are valid volume IDs. If the image doesn't exist,
     // BookCover's onError handler will fall back to the styled spine placeholder.
     const gbCoverUrl = (id: string) =>
-      `https://books.google.com/books/content?id=${id}&printsec=frontcover&img=1&zoom=1&source=gbs_api`;
+      `https://books.google.com/books/content?id=${id}&printsec=frontcover&img=1&zoom=2&source=gbs_api`;
 
     const books: Book[] = booksRaw.map((b: any) => ({
       id: b.id,

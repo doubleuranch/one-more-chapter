@@ -29,8 +29,8 @@ const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - i);
 // ─── Cake image resize helper ────────────────────────────────────────────────
 
 const CAKE_SIZES = [
-  { label: 'Small',  dim: 600  },
-  { label: 'Medium', dim: 1000 },
+  { label: 'Small',  dim: 800  },
+  { label: 'Medium', dim: 1600 },
   { label: 'Full',   dim: 0    }, // 0 = no resize
 ] as const;
 
@@ -487,7 +487,7 @@ function EditPastMeetingModal({ cb, onClose }: { cb: ClubBook; onClose: () => vo
   const [uploadingImage, setUploadingImage]     = useState(false);
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
-  const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
+  const [cakeSizeDim, setCakeSizeDim]           = useState(1600); // Medium default
   const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number; wasResized: boolean } | null>(null);
 
   const uploadCakeImage = async (file: File, dim: number) => {
@@ -796,7 +796,7 @@ function AddPastMeetingModal({ onClose, onSave, addBook }: {
   const [uploadingImage, setUploadingImage]     = useState(false);
   const [uploadError, setUploadError]           = useState<string | null>(null);
   const [selectedFile, setSelectedFile]         = useState<File | null>(null);
-  const [cakeSizeDim, setCakeSizeDim]           = useState(1000); // Medium default
+  const [cakeSizeDim, setCakeSizeDim]           = useState(1600); // Medium default
   const [resizeInfo, setResizeInfo]             = useState<{ w: number; h: number; kb: number; wasResized: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
