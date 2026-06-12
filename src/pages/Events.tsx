@@ -24,6 +24,15 @@ const RSVP_OPTIONS = [
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const currentYear = new Date().getFullYear();
+
+// Convert "18:00" → "6:00 PM", "09:30" → "9:30 AM"
+function formatTime(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return t;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour   = h % 12 || 12;
+  return m === 0 ? `${hour} ${period}` : `${hour}:${String(m).padStart(2, '0')} ${period}`;
+}
 const YEARS = Array.from({ length: 20 }, (_, i) => currentYear - i);
 
 // ─── Cake image resize helper ────────────────────────────────────────────────
@@ -395,7 +404,7 @@ function UpcomingEventCard({ event }: { event: ClubEvent }) {
             )}
           </div>
           <p className="text-earth-400 text-xs mt-0.5">
-            {event.time && `${event.time}`}{event.location ? (event.time ? ` · ${event.location}` : event.location) : ''}
+            {event.time && formatTime(event.time)}{event.location ? (event.time ? ` · ${event.location}` : event.location) : ''}
           </p>
           {event.host && (
             <p className="text-xs text-earth-500 mt-1">🏠 Hosted by {event.host}</p>
