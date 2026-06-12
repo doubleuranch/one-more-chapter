@@ -1,37 +1,66 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { validateInviteCode, signInWithEmail } from '../lib/supabase';
+import { validateInviteCode, signInWithPassword, signInWithEmail } from '../lib/supabase';
 
 type Tab = 'signin' | 'invite';
-type SignInStep = 'input' | 'sent';
+type SignInMode = 'password' | 'magic';
+type MagicStep = 'input' | 'sent';
 
 export default function Login() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('signin');
 
-  // Sign-in tab state
+  // Password sign-in
   const [email, setEmail] = useState('');
-  const [signInStep, setSignInStep] = useState<SignInStep>('input');
+  const [password, setPassword] = useState('');
   const [signInLoading, setSignInLoading] = useState(false);
   const [signInError, setSignInError] = useState('');
+
+  // Magic link fallback
+  const [signInMode, setSignInMode] = useState<SignInMode>('password');
+  const [magicStep, setMagicStep] = useState<MagicStep>('input');
 
   // Invite tab state
   const [inviteCode, setInviteCode] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handlePasswordSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed) return;
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !password) return;
     setSignInLoading(true);
     setSignInError('');
     try {
-      const { error } = await signInWithEmail(trimmed);
+      const { error } = await signInWithPassword(trimmedEmail, password);
+      if (error) {
+        setSignInError(
+          error.message.toLowerCase().includes('invalid')
+            ? 'Wrong email or password — give it another try.'
+            : error.message
+        );
+      } else {
+        navigate('/feed');
+      }
+    } catch {
+      setSignInError('Something went wrong. Please try again.');
+    } finally {
+      setSignInLoading(false);
+    }
+  };
+
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) return;
+    setSignInLoading(true);
+    setSignInError('');
+    try {
+      const { error } = await signInWithEmail(trimmedEmail);
       if (error) {
         setSignInError(error.message);
       } else {
-        setSignInStep('sent');
+        setMagicStep('sent');
       }
     } catch {
       setSignInError('Something went wrong. Please try again.');
@@ -58,6 +87,13 @@ export default function Login() {
     } finally {
       setInviteLoading(false);
     }
+  };
+
+  const switchMode = (mode: SignInMode) => {
+    setSignInMode(mode);
+    setSignInError('');
+    setMagicStep('input');
+    setPassword('');
   };
 
   return (
@@ -100,10 +136,51 @@ export default function Login() {
             {/* ── Sign in tab ── */}
             {tab === 'signin' && (
               <>
-                {signInStep === 'input' ? (
-                  <form onSubmit={handleSignIn} className="space-y-4">
+                {signInMode === 'password' ? (
+                  <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      required
+                      autoComplete="email"
+                      className="w-full border border-earth-200 rounded-xl px-4 py-3 text-sm text-earth-800 placeholder-earth-300 focus:outline-none focus:border-terracotta-400 bg-earth-50"
+                    />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Password"
+                      required
+                      autoComplete="current-password"
+                      className="w-full border border-earth-200 rounded-xl px-4 py-3 text-sm text-earth-800 placeholder-earth-300 focus:outline-none focus:border-terracotta-400 bg-earth-50"
+                    />
+                    {signInError && (
+                      <p className="text-xs text-red-500">{signInError}</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={signInLoading}
+                      className="w-full py-3 bg-terracotta-500 text-white rounded-xl font-medium text-sm hover:bg-terracotta-600 transition-colors disabled:opacity-60"
+                    >
+                      {signInLoading ? 'Signing in…' : 'Sign in →'}
+                    </button>
+                    <p className="text-center text-xs text-earth-400">
+                      Forgot your password?{' '}
+                      <button
+                        type="button"
+                        onClick={() => switchMode('magic')}
+                        className="text-terracotta-500 hover:underline"
+                      >
+                        Send a magic link instead
+                      </button>
+                    </p>
+                  </form>
+                ) : magicStep === 'input' ? (
+                  <form onSubmit={handleMagicLink} className="space-y-4">
                     <p className="text-sm text-earth-600">
-                      We'll email you a magic link — no password needed.
+                      We'll email you a sign-in link — no password needed.
                     </p>
                     <input
                       type="email"
@@ -124,6 +201,15 @@ export default function Login() {
                     >
                       {signInLoading ? 'Sending…' : 'Send magic link →'}
                     </button>
+                    <p className="text-center text-xs text-earth-400">
+                      <button
+                        type="button"
+                        onClick={() => switchMode('password')}
+                        className="text-terracotta-500 hover:underline"
+                      >
+                        ← Back to password sign-in
+                      </button>
+                    </p>
                   </form>
                 ) : (
                   <div className="text-center py-4 space-y-3">
@@ -131,13 +217,13 @@ export default function Login() {
                     <p className="font-medium text-earth-800">Check your email!</p>
                     <p className="text-sm text-earth-500">
                       We sent a sign-in link to <strong className="text-earth-700">{email}</strong>.
-                      Click it to get in — no password needed.
+                      Click it to get in.
                     </p>
                     <button
-                      onClick={() => { setSignInStep('input'); setEmail(''); }}
+                      onClick={() => switchMode('password')}
                       className="text-xs text-earth-400 hover:text-earth-600 underline mt-2"
                     >
-                      Use a different email
+                      ← Back to sign in
                     </button>
                   </div>
                 )}

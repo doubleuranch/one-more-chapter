@@ -5,7 +5,12 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Sign in with magic link — no password needed
+// Sign in with email + password
+export async function signInWithPassword(email: string, password: string) {
+  return supabase.auth.signInWithPassword({ email, password })
+}
+
+// Sign in with magic link — no password needed (fallback for forgotten passwords)
 export async function signInWithEmail(email: string) {
   return supabase.auth.signInWithOtp({
     email,
