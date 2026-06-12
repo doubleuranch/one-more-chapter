@@ -22,8 +22,15 @@ type Tab = 'all' | 'following' | 'for_you' | 'mine';
 
 export default function Feed() {
   const navigate = useNavigate();
-  const { feedItems, currentUser, notifications, getUser, getBook, markNotificationRead, markAllNotificationsRead, unreadCount, loading } = useApp();
+  const { feedItems, users, currentUser, notifications, getUser, getBook, followUser, markNotificationRead, markAllNotificationsRead, unreadCount, loading } = useApp();
   const [tab, setTab] = useState<Tab>('all');
+  const [dismissed, setDismissed] = useState(false);
+
+  // Club members the current user isn't following yet (excluding themselves)
+  const unfollowed = users.filter(u =>
+    u.id !== currentUser?.id &&
+    !currentUser?.following.includes(u.id)
+  );
 
   const myNotifs = notifications
     .filter(n => n.recipientId === currentUser?.id)
@@ -78,6 +85,46 @@ export default function Feed() {
           </button>
         ))}
       </div>
+
+      {/* People to follow strip — shown when there are unfollowed members */}
+      {!dismissed && unfollowed.length > 0 && tab !== 'for_you' && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-semibold text-earth-500 uppercase tracking-wide">People to follow</p>
+            <button
+              onClick={() => setDismissed(true)}
+              className="text-xs text-earth-400 hover:text-earth-600"
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+            {unfollowed.map(u => (
+              <div
+                key={u.id}
+                className="shrink-0 flex flex-col items-center gap-1.5 bg-white border border-earth-100 rounded-2xl px-4 py-3 w-28 shadow-sm"
+              >
+                <button onClick={() => navigate(`/profile/${u.username}`)}>
+                  <UserAvatar initials={u.avatarInitials} color={u.avatarColor} src={u.avatarUrl} size="md" />
+                </button>
+                <button
+                  onClick={() => navigate(`/profile/${u.username}`)}
+                  className="text-center"
+                >
+                  <p className="font-medium text-earth-800 text-xs leading-tight line-clamp-1">{u.displayName.split(' ')[0]}</p>
+                  <p className="text-earth-400 text-[10px] leading-tight">@{u.username}</p>
+                </button>
+                <button
+                  onClick={() => followUser(u.id)}
+                  className="mt-0.5 w-full py-1 bg-terracotta-500 text-white rounded-lg text-xs font-medium hover:bg-terracotta-600 transition-colors"
+                >
+                  Follow
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* For You tab — notifications */}
       {tab === 'for_you' ? (
@@ -153,7 +200,15 @@ export default function Feed() {
               <>
                 <p className="text-4xl mb-3">👥</p>
                 <p className="font-serif text-earth-700 text-lg font-semibold">No activity yet</p>
-                <p className="text-earth-400 text-sm mt-1 max-w-xs mx-auto">Follow your fellow readers to see what they're reading and loving</p>
+                <p className="text-earth-400 text-sm mt-1 max-w-xs mx-auto">Follow your fellow readers to see what they're up to</p>
+                {unfollowed.length > 0 && (
+                  <button
+                    onClick={() => { setDismissed(false); setTab('all'); }}
+                    className="mt-4 px-5 py-2 bg-terracotta-500 text-white rounded-xl text-sm font-medium hover:bg-terracotta-600 transition-colors"
+                  >
+                    Find people to follow →
+                  </button>
+                )}
               </>
             ) : tab === 'mine' ? (
               <>
