@@ -534,15 +534,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const nominateBook = (bookId: string) => {
     if (!state.currentUser) return;
     const userId = state.currentUser.id;
-    // Optimistic add with temp ID; replaced once Supabase returns the real UUID
+    // Optimistic add with temp ID; nominator's vote is included immediately
     const tempId = `temp_${Math.random().toString(36).slice(2)}`;
-    setState(s => ({ ...s, clubBooks: [...s.clubBooks, { id: tempId, bookId, status: 'nominated', addedBy: userId, votes: [] }] }));
-    toast.success('Book nominated!');
+    setState(s => ({ ...s, clubBooks: [...s.clubBooks, { id: tempId, bookId, status: 'nominated', addedBy: userId, votes: [userId] }] }));
+    toast.success('Nominated! Your vote is in. 🗳️');
     supabase.from('club_books').insert({ book_id: bookId, status: 'nominated', added_by: userId })
       .select('id').single()
       .then(({ data, error }) => {
         if (!error && data) {
+          // Swap temp ID for real UUID
           setState(s => ({ ...s, clubBooks: s.clubBooks.map(cb => cb.id === tempId ? { ...cb, id: data.id } : cb) }));
+          // Cast the nominator's first vote against the real club_book row
+          bg(supabase.from('votes').insert({ user_id: userId, club_book_id: data.id }));
         } else {
           console.error('nominateBook error:', error);
           setState(s => ({ ...s, clubBooks: s.clubBooks.filter(cb => cb.id !== tempId) }));
