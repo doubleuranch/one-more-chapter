@@ -145,10 +145,10 @@ export default function Nav() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-earth-200 z-20 flex justify-around px-2 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-earth-200 z-20 flex justify-around px-1 pb-safe">
         <NavItem to="/feed" icon={<HomeIcon />} label="Activity" />
-        <NavItem to="/shelf" icon={<MyShelfIcon />} label="My Shelf" />
         <NavItem to="/club" icon={<ShelfIcon />} label="Nominate" />
+        <NavItem to="/events" icon={<EventsIcon />} label="Meetings" />
         <NavItem to="/search" icon={<SearchIcon />} label="Search" />
         {currentUser && (
           <NavLink
