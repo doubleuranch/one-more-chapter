@@ -50,20 +50,28 @@ function NavItem({ to, icon, label, badge }: NavItemProps) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors relative ${
-          isActive ? 'text-terracotta-600' : 'text-earth-400 hover:text-earth-600'
+        `flex flex-col items-center gap-0.5 min-w-0 px-1 pt-1.5 pb-0.5 transition-colors ${
+          isActive ? 'text-terracotta-600' : 'text-earth-400'
         }`
       }
     >
-      <div className="relative">
-        {icon}
-        {badge != null && badge > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[14px] h-3.5 flex items-center justify-center bg-terracotta-500 text-white text-[9px] font-bold rounded-full px-0.5">
-            {badge > 9 ? '9+' : badge}
-          </span>
-        )}
-      </div>
-      <span className="text-xs font-medium">{label}</span>
+      {({ isActive }: { isActive: boolean }) => (
+        <>
+          <div
+            className={`relative rounded-xl px-3 py-1 transition-all duration-200 ${
+              isActive ? 'bg-terracotta-50' : ''
+            }`}
+          >
+            {icon}
+            {badge != null && badge > 0 && (
+              <span className="absolute -top-1 -right-0.5 min-w-[14px] h-3.5 flex items-center justify-center bg-terracotta-500 text-white text-[9px] font-bold rounded-full px-0.5">
+                {badge > 9 ? '9+' : badge}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-medium leading-none">{label}</span>
+        </>
+      )}
     </NavLink>
   );
 }
@@ -145,27 +153,36 @@ export default function Nav() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-earth-200 z-20 flex justify-around px-1 pb-safe">
-        <NavItem to="/feed" icon={<HomeIcon />} label="Activity" />
-        <NavItem to="/club" icon={<ShelfIcon />} label="Nominate" />
-        <NavItem to="/events" icon={<EventsIcon />} label="Meetings" />
-        <NavItem to="/search" icon={<SearchIcon />} label="Search" />
-        {currentUser && (
-          <NavLink
-            to="/profile"
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors relative ${isActive ? 'text-terracotta-600' : 'text-earth-400'}`
-            }
-          >
-            <div className="relative">
-              <UserAvatar initials={currentUser.avatarInitials} color={currentUser.avatarColor} src={currentUser.avatarUrl} size="xs" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-terracotta-500 rounded-full ring-1 ring-white" />
+      {/* The nav element covers the full bottom including safe area so the bg fills the home-indicator zone */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-earth-200 z-20">
+        <div className="flex justify-around items-center px-1 pt-1 pb-safe">
+          <NavItem to="/feed" icon={<HomeIcon />} label="Activity" />
+          <NavItem to="/club" icon={<ShelfIcon />} label="Nominate" />
+          <NavItem to="/events" icon={<EventsIcon />} label="Meetings" />
+          <NavItem to="/search" icon={<SearchIcon />} label="Search" />
+          {currentUser && (
+            <NavLink
+              to="/profile"
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-0.5 min-w-0 px-1 pt-1.5 pb-0.5 transition-colors ${
+                  isActive ? 'text-terracotta-600' : 'text-earth-400'
+                }`
+              }
+            >
+              {({ isActive }: { isActive: boolean }) => (
+                <>
+                  <div className={`relative rounded-xl px-2 py-1 transition-all duration-200 ${isActive ? 'bg-terracotta-50' : ''}`}>
+                    <UserAvatar initials={currentUser.avatarInitials} color={currentUser.avatarColor} src={currentUser.avatarUrl} size="xs" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-terracotta-500 rounded-full ring-1 ring-white" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium leading-none">Me</span>
+                </>
               )}
-            </div>
-            <span className="text-xs font-medium">Me</span>
-          </NavLink>
-        )}
+            </NavLink>
+          )}
+        </div>
       </nav>
     </>
   );

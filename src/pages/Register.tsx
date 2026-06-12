@@ -49,7 +49,16 @@ export default function Register() {
         avatarInitials: initials,
       }));
 
-      const { error: authError } = await signUpWithPassword(email.trim().toLowerCase(), password);
+      const { error: authError } = await signUpWithPassword(
+        email.trim().toLowerCase(),
+        password,
+        {
+          username: username.trim().toLowerCase(),
+          display_name: displayName.trim(),
+          avatar_initials: initials,
+          avatar_color: avatarColor,
+        },
+      );
       if (authError) {
         localStorage.removeItem('omc_pending_profile');
         setError(authError.message);

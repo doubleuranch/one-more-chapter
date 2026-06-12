@@ -25,7 +25,7 @@ interface AppState {
 
 interface AppContextValue extends AppState {
   logout: () => void;
-  updateProfile: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => void;
+  updateProfile: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook' | 'memberSince'>>) => void;
   rateBook: (bookId: string, rating: Rating, hotTake?: string, vibeTags?: string[], format?: BookFormat) => void;
   setBookStatus: (bookId: string, status: BookStatus, progress?: number, hotTake?: string) => void;
   removeBook: (bookId: string) => void;
@@ -159,6 +159,7 @@ async function loadAllData(
       following: followsRaw.filter((f: any) => f.follower_id === p.id).map((f: any) => f.following_id),
       followers: followsRaw.filter((f: any) => f.following_id === p.id).map((f: any) => f.follower_id),
       joinedDate: p.created_at?.split('T')[0] ?? '',
+      memberSince: p.member_since ?? undefined,
       isAdmin: p.is_admin ?? false,
     }));
 
@@ -362,7 +363,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ── Profile ───────────────────────────────────────────────────────────────────
-  const updateProfile = (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => {
+  const updateProfile = (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook' | 'memberSince'>>) => {
     if (!state.currentUser) return;
     const userId = state.currentUser.id;
     setState(s => {
@@ -381,6 +382,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(updates.avatarUrl      !== undefined && { avatar_url:      updates.avatarUrl }),
       ...(updates.favoriteAuthor !== undefined && { favorite_author: updates.favoriteAuthor ?? null }),
       ...(updates.favoriteBook   !== undefined && { favorite_book:   updates.favoriteBook ?? null }),
+      ...(updates.memberSince    !== undefined && { member_since:    updates.memberSince ?? null }),
     }).eq('id', userId));
     toast.success('Profile saved!');
   };

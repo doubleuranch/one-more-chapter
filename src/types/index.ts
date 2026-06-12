@@ -18,6 +18,7 @@ export interface User {
   following: string[];
   followers: string[];
   joinedDate: string;
+  memberSince?: string;   // editable year, e.g. "2021" — overrides joinedDate for display
   isAdmin?: boolean;
 }
 

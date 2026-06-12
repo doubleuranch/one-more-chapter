@@ -16,8 +16,16 @@ export async function signInWithEmail(email: string) {
 }
 
 // Sign up with email + password (requires email confirmations OFF in Supabase Auth settings)
-export async function signUpWithPassword(email: string, password: string) {
-  return supabase.auth.signUp({ email, password })
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  metadata?: { username: string; display_name: string; avatar_initials: string; avatar_color: string },
+) {
+  return supabase.auth.signUp({
+    email,
+    password,
+    ...(metadata && { options: { data: metadata } }),
+  })
 }
 
 export async function signOut() {

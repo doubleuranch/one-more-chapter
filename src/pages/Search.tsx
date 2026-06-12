@@ -6,8 +6,25 @@ import Layout from '../components/Layout';
 import BookCard from '../components/BookCard';
 import { SkeletonBookCard } from '../components/Skeleton';
 
+// Normalize a title+author pair into a stable dedup key.
+// Strips: leading articles (the/a/an), subtitles after ":", parenthetical edition info.
+function dedupeKey(title: string, author: string): string {
+  const t = title
+    .toLowerCase()
+    .replace(/\s*:.*$/, '')                   // "Secret Garden: A Novel" → "Secret Garden"
+    .replace(/\s*[\(\[][^\)\]]+[\)\]]/g, '')  // "Secret Garden (Classics)" → "Secret Garden"
+    .replace(/^(the|a|an)\s+/i, '')            // "The Secret Garden" → "Secret Garden"
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 30);
+  const a = author
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 20);
+  return `${t}|${a}`;
+}
+
 export default function Search() {
-  const { books, addBook } = useApp();
+  const { books, addBook, feedItems } = useApp();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GoogleBook[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,10 +48,11 @@ export default function Search() {
       ...remoteResults,
     ];
 
-    // Deduplicate: keep only the first result per normalized title+author pair
+    // Deduplicate: keep only the first result per normalized title+author pair.
+    // Local DB results come first so they win over fresh Google results.
     const seen = new Set<string>();
     const deduped = combined.filter(r => {
-      const key = `${r.title.toLowerCase().replace(/[^a-z0-9]/g, '')}|${r.author.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20)}`;
+      const key = dedupeKey(r.title, r.author);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -55,7 +73,25 @@ export default function Search() {
     setLoading(false);
   }, [query, books]);
 
-  const trendingBooks = books.slice(0, 8);
+  // Trending = books with the most recent club activity (feedItems is sorted newest-first).
+  // Falls back to any remaining books if there aren't 8 with feed activity.
+  const trendingBooks = (() => {
+    const seen = new Set<string>();
+    const out: typeof books = [];
+    for (const item of feedItems) {
+      if (seen.has(item.bookId)) continue;
+      const book = books.find(b => b.id === item.bookId);
+      if (!book) continue;
+      seen.add(item.bookId);
+      out.push(book);
+      if (out.length >= 8) break;
+    }
+    for (const book of books) {
+      if (out.length >= 8) break;
+      if (!seen.has(book.id)) out.push(book);
+    }
+    return out;
+  })();
 
   return (
     <Layout title="Search">
@@ -79,12 +115,12 @@ export default function Search() {
       {!searched ? (
         <>
           <h3 className="font-serif font-semibold text-earth-700 text-base mb-4">Trending in your club</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
             {trendingBooks.map(book => <BookCard key={book.id} book={book} showActions={false} />)}
           </div>
         </>
       ) : loading ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
           {Array.from({ length: 8 }).map((_, i) => <SkeletonBookCard key={i} />)}
         </div>
       ) : results.length === 0 ? (
@@ -96,7 +132,7 @@ export default function Search() {
       ) : (
         <>
           <p className="text-earth-400 text-sm mb-4">{results.length} results for "{query}"</p>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
             {results.map(gb => {
               const book = books.find(b => b.id === gb.id) ?? {
                 id: gb.id, title: gb.title, author: gb.author,

@@ -101,7 +101,7 @@ export default function ActivityItem({ item }: Props) {
                 key={emoji}
                 onClick={() => myId && toggleReaction(item.id, emoji)}
                 title={REACTION_LABELS[emoji]}
-                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors ${
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs transition-colors ${
                   isMine
                     ? 'bg-terracotta-100 text-terracotta-700 border border-terracotta-300'
                     : count > 0

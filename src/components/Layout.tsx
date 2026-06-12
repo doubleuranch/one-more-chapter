@@ -23,7 +23,7 @@ export default function Layout({ children, title, headerRight, noPadding }: Prop
         )}
         <main
           key={pathname}
-          className={`page-enter ${noPadding ? 'pb-20 md:pb-0' : 'px-4 md:px-6 py-6 pb-24 md:pb-6 max-w-2xl mx-auto md:mx-0'}`}
+          className={`page-enter ${noPadding ? 'pb-nav md:pb-0' : 'px-4 md:px-6 py-6 pb-nav md:pb-6'}`}
         >
           {children}
         </main>

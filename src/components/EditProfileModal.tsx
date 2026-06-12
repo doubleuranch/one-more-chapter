@@ -20,9 +20,12 @@ async function resizeImage(file: File, maxDim = 200): Promise<string> {
   });
 }
 
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: currentYear - 1989 }, (_, i) => currentYear - i);
+
 interface Props {
   user: User;
-  onSave: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook'>>) => void;
+  onSave: (updates: Partial<Pick<User, 'displayName' | 'bio' | 'tagline' | 'avatarUrl' | 'avatarColor' | 'favoriteAuthor' | 'favoriteBook' | 'memberSince'>>) => void;
   onClose: () => void;
 }
 
@@ -32,6 +35,9 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
   const [tagline, setTagline] = useState(user.tagline ?? '');
   const [favoriteAuthor, setFavoriteAuthor] = useState(user.favoriteAuthor ?? '');
   const [favoriteBook, setFavoriteBook] = useState(user.favoriteBook ?? '');
+  // memberSince: use saved value, fall back to account creation year
+  const defaultYear = (user.memberSince ?? user.joinedDate?.split('-')[0] ?? String(currentYear));
+  const [memberSince, setMemberSince] = useState(defaultYear);
   const [avatarColor, setAvatarColor] = useState(user.avatarColor);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(user.avatarUrl);
   const [uploading, setUploading] = useState(false);
@@ -56,6 +62,7 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
       avatarColor,
       favoriteAuthor: favoriteAuthor.trim() || undefined,
       favoriteBook: favoriteBook.trim() || undefined,
+      memberSince,
     });
     onClose();
   };
@@ -154,7 +161,7 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
           </div>
 
           {/* Favorite book */}
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="text-sm font-medium text-earth-700 block mb-1.5">
               Favorite book <span className="text-earth-400 font-normal">(optional)</span>
             </label>
@@ -164,6 +171,23 @@ export default function EditProfileModal({ user, onSave, onClose }: Props) {
               placeholder="e.g. The Secret History"
               className="w-full border border-earth-200 rounded-xl px-4 py-2.5 text-sm text-earth-800 focus:outline-none focus:border-terracotta-400 bg-earth-50"
             />
+          </div>
+
+          {/* Member since */}
+          <div className="mb-6">
+            <label className="text-sm font-medium text-earth-700 block mb-1.5">
+              Member since
+            </label>
+            <select
+              value={memberSince}
+              onChange={e => setMemberSince(e.target.value)}
+              className="w-full border border-earth-200 rounded-xl px-4 py-2.5 text-sm text-earth-800 focus:outline-none focus:border-terracotta-400 bg-earth-50"
+            >
+              {YEARS.map(y => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
+            <p className="text-xs text-earth-400 mt-1">Set this to when you actually joined the club, not when you created your account.</p>
           </div>
 
           <div className="flex gap-3">

@@ -52,7 +52,7 @@ export default function Profile() {
 
   return (
     <Layout noPadding>
-      <div className="max-w-2xl mx-auto md:mx-0">
+      <div className="max-w-4xl mx-auto md:mx-0">
         {/* Header */}
         <div className="bg-earth-100 px-4 md:px-6 pt-8 pb-6">
           <div className="flex items-start gap-4">
@@ -61,8 +61,8 @@ export default function Profile() {
               <h1 className="font-serif font-bold text-earth-800 text-2xl">{profileUser.displayName}</h1>
               <p className="text-earth-400 text-sm">
                 @{profileUser.username}
-                {profileUser.joinedDate && (
-                  <span className="ml-2 text-earth-300">· member since {profileUser.joinedDate.split('-')[0]}</span>
+                {(profileUser.memberSince ?? profileUser.joinedDate) && (
+                  <span className="ml-2 text-earth-300">· member since {profileUser.memberSince ?? profileUser.joinedDate.split('-')[0]}</span>
                 )}
               </p>
               {profileUser.tagline && (
@@ -214,7 +214,7 @@ export default function Profile() {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {filtered.map(ub => {
                 const book = getBook(ub.bookId);
                 if (!book) return null;

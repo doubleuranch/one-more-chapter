@@ -58,8 +58,31 @@ export default function RatingModal({ book, existingRating, existingHotTake, exi
   const [vibes, setVibes] = useState<string[]>(existingVibeTags ?? []);
   const [format, setFormat] = useState<BookFormat>(existingFormat ?? 'read');
 
+  // Custom vibes the user has added — seeded from any saved tags not in the preset list
+  const [customVibes, setCustomVibes] = useState<string[]>(
+    (existingVibeTags ?? []).filter(t => !VIBE_OPTIONS.includes(t))
+  );
+  const [addingVibe, setAddingVibe] = useState(false);
+  const [newVibeText, setNewVibeText] = useState('');
+
+  const allVibes = [...VIBE_OPTIONS, ...customVibes];
+
   const toggleVibe = (tag: string) =>
     setVibes(v => v.includes(tag) ? v.filter(t => t !== tag) : [...v, tag]);
+
+  const commitNewVibe = () => {
+    const tag = newVibeText.trim().toLowerCase();
+    setNewVibeText('');
+    setAddingVibe(false);
+    if (!tag) return;
+    // If it matches an existing vibe (preset or custom), just select it
+    if (allVibes.includes(tag)) {
+      if (!vibes.includes(tag)) setVibes(v => [...v, tag]);
+      return;
+    }
+    setCustomVibes(c => [...c, tag]);
+    setVibes(v => [...v, tag]); // auto-select the new tag
+  };
 
   const handleSave = () => {
     if (!rating) return;
@@ -124,9 +147,44 @@ export default function RatingModal({ book, existingRating, existingHotTake, exi
           <div className="mb-6">
             <p className="text-earth-700 font-medium text-sm mb-2">Vibes <span className="text-earth-400 font-normal">(pick any)</span></p>
             <div className="flex flex-wrap gap-2">
-              {VIBE_OPTIONS.map(tag => (
+              {allVibes.map(tag => (
                 <VibeTag key={tag} tag={tag} selected={vibes.includes(tag)} onClick={() => toggleVibe(tag)} />
               ))}
+
+              {/* Inline "add your own vibe" control */}
+              {addingVibe ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={newVibeText}
+                    onChange={e => setNewVibeText(e.target.value.slice(0, 32))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); commitNewVibe(); }
+                      if (e.key === 'Escape') { setAddingVibe(false); setNewVibeText(''); }
+                    }}
+                    onBlur={() => { if (!newVibeText.trim()) { setAddingVibe(false); setNewVibeText(''); } }}
+                    placeholder="your vibe…"
+                    className="text-xs px-2.5 py-1 rounded-full border-2 border-terracotta-300 bg-terracotta-50 text-earth-800 placeholder-earth-400 focus:outline-none focus:border-terracotta-500 w-28"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={e => e.preventDefault()} // prevent input blur before click
+                    onClick={commitNewVibe}
+                    disabled={!newVibeText.trim()}
+                    className="text-xs px-2.5 py-1 rounded-full bg-terracotta-500 text-white font-medium hover:bg-terracotta-600 disabled:opacity-40 transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAddingVibe(true)}
+                  className="text-xs px-2.5 py-1 rounded-full border border-dashed border-earth-300 text-earth-400 hover:border-terracotta-400 hover:text-terracotta-500 transition-colors font-medium"
+                >
+                  + add your own
+                </button>
+              )}
             </div>
           </div>
 

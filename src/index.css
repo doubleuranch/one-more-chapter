@@ -5,6 +5,12 @@
 @layer base {
   * {
     box-sizing: border-box;
+    /* Remove the blue flash on tap for every element on iOS */
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    /* Prevent rubber-band bounce on the document itself */
+    overscroll-behavior-y: none;
   }
   body {
     background-color: #F5F0E8;
@@ -14,6 +20,11 @@
     padding: 0;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
+    overscroll-behavior-y: none;
+  }
+  /* Instant tap response — eliminates 300ms delay on iOS */
+  button, a, [role="button"] {
+    touch-action: manipulation;
   }
   h1, h2, h3, h4 {
     font-family: Georgia, Cambria, 'Times New Roman', serif;
@@ -78,4 +89,25 @@
 
 .thumb-pop {
   animation: thumb-pop 0.3s ease-out both;
+}
+
+/* ─── iOS safe area ─────────────────────────────────────────────────────────── */
+/* Pushes the mobile nav content above the home indicator pill */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Page content bottom padding: clears the nav bar (4rem) + home indicator */
+.pb-nav {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ─── Prevent iOS Safari from zooming on input focus ────────────────────────── */
+/* iOS zooms whenever an input has font-size < 16px. Override globally on touch. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }

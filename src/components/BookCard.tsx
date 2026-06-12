@@ -73,7 +73,7 @@ export default function BookCard({ book, showActions = true, compact = false }: 
           <div className="absolute top-1.5 right-1.5">
             <button
               onClick={e => { e.stopPropagation(); setShowMenu(m => !m); }}
-              className="w-7 h-7 rounded-full bg-white/90 text-earth-600 text-sm flex items-center justify-center shadow hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity"
+              className="w-7 h-7 rounded-full bg-white/90 text-earth-600 text-sm flex items-center justify-center shadow hover:bg-white opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
             >
               ···
             </button>
