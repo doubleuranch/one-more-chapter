@@ -6,21 +6,22 @@ import Layout from '../components/Layout';
 import BookCard from '../components/BookCard';
 import { SkeletonBookCard } from '../components/Skeleton';
 
-// Normalize a title+author pair into a stable dedup key.
-// Strips: leading articles (the/a/an), subtitles after ":", parenthetical edition info.
-function dedupeKey(title: string, author: string): string {
-  const t = title
+// Strip a title down to its core for comparison.
+// Removes: leading articles, subtitles, edition/series info in parens/brackets.
+function normalizeTitle(title: string): string {
+  return title
     .toLowerCase()
     .replace(/\s*:.*$/, '')                   // "Secret Garden: A Novel" → "Secret Garden"
     .replace(/\s*[\(\[][^\)\]]+[\)\]]/g, '')  // "Secret Garden (Classics)" → "Secret Garden"
-    .replace(/^(the|a|an)\s+/i, '')            // "The Secret Garden" → "Secret Garden"
+    .replace(/^(the|a|an)\s+/i, '')           // "The Secret Garden" → "Secret Garden"
     .replace(/[^a-z0-9]/g, '')
     .slice(0, 30);
-  const a = author
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 20);
-  return `${t}|${a}`;
+}
+
+// Full dedup key: title + first 20 chars of author (no punctuation).
+function dedupeKey(title: string, author: string): string {
+  const a = author.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+  return `${normalizeTitle(title)}|${a}`;
 }
 
 export default function Search() {
@@ -35,10 +36,21 @@ export default function Search() {
     setLoading(true);
     setSearched(true);
 
-    const localMatches = books.filter(b =>
+    const rawLocalMatches = books.filter(b =>
       b.title.toLowerCase().includes(query.toLowerCase()) ||
       b.author.toLowerCase().includes(query.toLowerCase())
     );
+
+    // Pre-dedup local results by title alone — the DB may have stored multiple
+    // editions of the same book (different IDs, slightly different author strings).
+    const titleSeen = new Set<string>();
+    const localMatches = rawLocalMatches.filter(b => {
+      const key = normalizeTitle(b.title);
+      if (titleSeen.has(key)) return false;
+      titleSeen.add(key);
+      return true;
+    });
+
     const googleResults = await searchGoogleBooks(query);
     const localIds = new Set(localMatches.map(b => b.id));
     const remoteResults = googleResults.filter(r => !localIds.has(r.id));
@@ -74,21 +86,28 @@ export default function Search() {
   }, [query, books]);
 
   // Trending = books with the most recent club activity (feedItems is sorted newest-first).
-  // Falls back to any remaining books if there aren't 8 with feed activity.
+  // Deduplicates by normalized title so multiple DB editions of the same book count as one.
   const trendingBooks = (() => {
-    const seen = new Set<string>();
+    const idSeen   = new Set<string>();
+    const titleSeen = new Set<string>();
     const out: typeof books = [];
+
     for (const item of feedItems) {
-      if (seen.has(item.bookId)) continue;
+      if (idSeen.has(item.bookId)) continue;
       const book = books.find(b => b.id === item.bookId);
       if (!book) continue;
-      seen.add(item.bookId);
+      const tk = normalizeTitle(book.title);
+      if (titleSeen.has(tk)) continue;
+      idSeen.add(item.bookId);
+      titleSeen.add(tk);
       out.push(book);
       if (out.length >= 8) break;
     }
+    // Pad with remaining books if fewer than 8 from feed
     for (const book of books) {
       if (out.length >= 8) break;
-      if (!seen.has(book.id)) out.push(book);
+      const tk = normalizeTitle(book.title);
+      if (!titleSeen.has(tk)) { titleSeen.add(tk); out.push(book); }
     }
     return out;
   })();
