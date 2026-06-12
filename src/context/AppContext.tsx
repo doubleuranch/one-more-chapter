@@ -163,18 +163,21 @@ async function loadAllData(
       isAdmin: p.is_admin ?? false,
     }));
 
-    // Map books — if cover_url is missing in the DB, reconstruct it from the
-    // Google Books volume ID. All books in this app come from the Google Books
-    // API so their IDs are valid volume IDs. If the image doesn't exist,
-    // BookCover's onError handler will fall back to the styled spine placeholder.
+    // Map books — upgrade any stored cover URL to zoom=2 (300×450px) so
+    // covers are sharp on HiDPI monitors regardless of what zoom level was
+    // saved to the DB. If cover_url is missing entirely, reconstruct it from
+    // the Google Books volume ID; BookCover's onError handles non-existent covers.
     const gbCoverUrl = (id: string) =>
       `https://books.google.com/books/content?id=${id}&printsec=frontcover&img=1&zoom=2&source=gbs_api`;
+
+    const upgradeZoom = (url: string) =>
+      url.replace(/zoom=\d+/, 'zoom=2').replace(/&edge=curl/, '');
 
     const books: Book[] = booksRaw.map((b: any) => ({
       id: b.id,
       title: b.title,
       author: b.author,
-      coverUrl: b.cover_url ?? gbCoverUrl(b.id),
+      coverUrl: b.cover_url ? upgradeZoom(b.cover_url) : gbCoverUrl(b.id),
       description: b.description ?? '',
       publishedYear: b.published_year ?? 0,
       genre: b.genre ?? 'Fiction',
