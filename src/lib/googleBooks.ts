@@ -29,14 +29,7 @@ export async function searchGoogleBooks(query: string): Promise<GoogleBook[]> {
       .map(item => {
         const info = item.volumeInfo;
         let coverUrl = info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail;
-        if (coverUrl) {
-          // zoom=2 → 300×450px (vs zoom=1 thumbnail at ~128×170px).
-          // 300px is sharp on standard and 2× HiDPI displays.
-          coverUrl = coverUrl
-            .replace('http://', 'https://')
-            .replace(/zoom=\d+/, 'zoom=2')
-            .replace(/&edge=curl/, ''); // curl effect looks odd at larger sizes
-        }
+        if (coverUrl) coverUrl = coverUrl.replace('http://', 'https://');
         return {
           id: item.id,
           title: info.title!,
