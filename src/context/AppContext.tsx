@@ -163,12 +163,18 @@ async function loadAllData(
       isAdmin: p.is_admin ?? false,
     }));
 
-    // Map books
+    // Map books — if cover_url is missing in the DB, reconstruct it from the
+    // Google Books volume ID. All books in this app come from the Google Books
+    // API so their IDs are valid volume IDs. If the image doesn't exist,
+    // BookCover's onError handler will fall back to the styled spine placeholder.
+    const gbCoverUrl = (id: string) =>
+      `https://books.google.com/books/content?id=${id}&printsec=frontcover&img=1&zoom=1&source=gbs_api`;
+
     const books: Book[] = booksRaw.map((b: any) => ({
       id: b.id,
       title: b.title,
       author: b.author,
-      coverUrl: b.cover_url ?? undefined,
+      coverUrl: b.cover_url ?? gbCoverUrl(b.id),
       description: b.description ?? '',
       publishedYear: b.published_year ?? 0,
       genre: b.genre ?? 'Fiction',
@@ -389,7 +395,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Books ─────────────────────────────────────────────────────────────────────
 
-  // Upsert a book into the DB (ignoreDuplicates so no UPDATE policy needed)
+  // Upsert a book into the DB. On conflict (same Google Books ID), update
+  // cover_url only when it was previously null so we never lose a working URL.
+  // Requires books_update RLS policy: check (auth.uid() is not null).
   const persistBook = (book: Book): Promise<void> =>
     bg(supabase.from('books').upsert({
       id: book.id,
@@ -400,7 +408,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       published_year: book.publishedYear,
       genre: book.genre,
       page_count: book.pageCount,
-    }, { onConflict: 'id', ignoreDuplicates: true }));
+    }, { onConflict: 'id' }));
 
   const addBook = (book: Book) => {
     setState(s => ({

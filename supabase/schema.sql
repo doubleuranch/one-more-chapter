@@ -239,9 +239,10 @@ create policy "follows_select" on public.follows for select using (true);
 create policy "follows_insert" on public.follows for insert with check (auth.uid() = follower_id);
 create policy "follows_delete" on public.follows for delete using (auth.uid() = follower_id);
 
--- Books: anyone can read; any member can insert (for caching Google Books results)
+-- Books: anyone can read; any member can insert or update (for caching Google Books results)
 create policy "books_select" on public.books for select using (true);
 create policy "books_insert" on public.books for insert with check (auth.uid() is not null);
+create policy "books_update" on public.books for update using (auth.uid() is not null);
 
 -- User books: anyone in the club can read (for feed/book detail); only you can write yours
 create policy "user_books_select" on public.user_books for select using (true);
